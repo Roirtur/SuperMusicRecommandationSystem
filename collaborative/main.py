@@ -1,7 +1,8 @@
+import os
 from typing import Literal
 import numpy as np
 
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "t")
 
 USER_MAPPING: dict[str, int] = {}
 SONG_MAPPING: dict[str, int] = {}

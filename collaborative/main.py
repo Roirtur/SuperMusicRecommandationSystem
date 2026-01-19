@@ -8,7 +8,7 @@ DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "t")
 USER_MAPPING: dict[str, int] = {}
 SONG_MAPPING: dict[str, int] = {}
 
-DATASET_MAX_SIZE = 10_000
+DATASET_MAX_SIZE = 100_000
 
 # It's a list of tuples (user, song, listenings)
 dataset_raw: list[np.ndarray[tuple[Literal[3]], np.dtype[np.int32]]] = []
@@ -39,7 +39,7 @@ training_set = dataset_shuffled[:training_set_size]
 validation_set = dataset_shuffled[training_set_size:]
 
 # (Hyperparameter) Size of latent space to make the embeddings
-l = 100
+l = 1000
 # Initial (random) values
 # Shape: (#SONGS, l)
 q = np.random.random_sample((len(SONG_MAPPING), l))
@@ -60,7 +60,7 @@ losses = [np.nan] * n_epochs
 losses_validation = [np.nan] * n_epochs
 
 for epoch in range(n_epochs):
-    print(f"Epoch {epoch}")
+    print(f"Epoch {epoch+1}")
     loss_sum: float = 0
 
     np.random.shuffle(training_set)  # Reorder examples at each epoch

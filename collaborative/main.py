@@ -41,13 +41,13 @@ validation_set = dataset_shuffled[training_set_size:]
 l = 100
 # Initial (random) values
 # Shape: (#SONGS, l)
-q_i = np.random.random_sample((len(SONG_MAPPING), l))
+q = np.random.random_sample((len(SONG_MAPPING), l))
 if DEBUG:
-    print(q_i.shape, q_i.dtype, q_i)
+    print(q.shape, q.dtype, q)
 # Shape: (#USERS, l)
-p_u = np.random.random_sample((len(USER_MAPPING), l))
+p = np.random.random_sample((len(USER_MAPPING), l))
 if DEBUG:
-    print(p_u.shape, p_u.dtype, p_u)
+    print(p.shape, p.dtype, p)
 
 
 # Training parameters
@@ -71,10 +71,13 @@ for epoch in range(n_epochs):
             )
 
         # Predicted value
+        p_u = p[user].copy()
+        q_i = q[song].copy()
         if DEBUG:
-            print(p_u[user])
-            print(q_i[song])
-        listenings_hat = p_u[user].T @ q_i[song]
+            print(p_u)
+            print(q_i)
+
+        listenings_hat = p_u.T @ q_i
         if DEBUG:
             print(f"Prediction: {listenings_hat}")
 
@@ -85,13 +88,13 @@ for epoch in range(n_epochs):
         loss_sum += loss
 
         # This is the learning part
-        q_i[song] += gamma * (loss * p_u[user] - lbd * q_i[song])
-        p_u[user] += gamma * (loss * q_i[song] - lbd * p_u[user])
+        q[song] += gamma * (loss * p_u - lbd * q_i)
+        p[user] += gamma * (loss * q_i - lbd * p_u)
 
     # Now evaluating on validation data
     loss_validation_sum = 0
     for user, song, listenings in validation_set:
-        listenings_hat = p_u[user].T @ q_i[song]
+        listenings_hat = p[user].T @ q[song]
 
         loss = listenings - listenings_hat
         loss_validation_sum += loss

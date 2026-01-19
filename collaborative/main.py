@@ -65,7 +65,9 @@ for epoch in range(n_epochs):
     # listenings \in N (r_ui, "true" value)
     for i, (user, song, listenings) in enumerate(training_set):
         if DEBUG:
-            print(f"Value {i}/{len(training_set)}")
+            print(
+                f"Training value {i}/{len(training_set)}: ({user},{song},{listenings})"
+            )
 
         # Predicted value
         if DEBUG:

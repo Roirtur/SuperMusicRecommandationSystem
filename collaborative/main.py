@@ -12,6 +12,7 @@ DATASET_MAX_SIZE = 100_000
 
 # It's a list of tuples (user, song, listenings)
 dataset_raw: list[np.ndarray[tuple[Literal[3]], np.dtype[np.int32]]] = []
+# Dataset from http://millionsongdataset.com/tasteprofile/
 with open("../train_triplets.txt", "r") as dataset_file:
     for line in dataset_file:
         user_id, song_id, listenings = line.split("\t")

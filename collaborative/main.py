@@ -1,5 +1,6 @@
 import os
 from typing import Literal
+import matplotlib.pyplot as plt
 import numpy as np
 
 DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "t")
@@ -55,9 +56,11 @@ lbd = 0.01
 gamma = 0.01
 n_epochs = 20
 
+losses = [np.nan] * n_epochs
+losses_validation = [np.nan] * n_epochs
+
 for epoch in range(n_epochs):
-    if DEBUG:
-        print(f"Epoch {epoch}")
+    print(f"Epoch {epoch}")
     loss_sum: float = 0
 
     np.random.shuffle(training_set)  # Reorder examples at each epoch
@@ -81,27 +84,40 @@ for epoch in range(n_epochs):
         if DEBUG:
             print(f"Prediction: {listenings_hat}")
 
-        # Prediction error (loss)
-        loss = listenings - listenings_hat
+        # Prediction error
+        e_ui = listenings - listenings_hat
+
+        # This is the learning part
+        q[song] += gamma * (e_ui * p_u - lbd * q_i)
+        p[user] += gamma * (e_ui * q_i - lbd * p_u)
+
+        # Loss
+        loss = e_ui**2 + lbd * (np.linalg.norm(q_i) ** 2 + np.linalg.norm(p_u) ** 2)
         if DEBUG:
             print(f"Loss: {loss}")
         loss_sum += loss
 
-        # This is the learning part
-        q[song] += gamma * (loss * p_u - lbd * q_i)
-        p[user] += gamma * (loss * q_i - lbd * p_u)
+    losses[epoch] = loss_sum / len(training_set)
 
     # Now evaluating on validation data
     loss_validation_sum = 0
     for user, song, listenings in validation_set:
         listenings_hat = p[user].T @ q[song]
 
-        loss = listenings - listenings_hat
+        e_ui = listenings - listenings_hat
+
+        # Loss
+        loss = e_ui**2 + lbd * (
+            np.linalg.norm(q[song]) ** 2 + np.linalg.norm(p[user]) ** 2
+        )
         loss_validation_sum += loss
 
-    print(
-        "loss: ",
-        loss_sum / len(training_set),
-        "validation loss:",
-        loss_validation_sum / len(training_set),
-    )
+    losses_validation[epoch] = loss_validation_sum / len(training_set)
+
+    print(f"Loss: {losses[epoch]}, validation loss: {losses_validation[epoch]}")
+
+plt.plot(losses, label="Train loss")
+plt.plot(losses_validation, label="Validation loss")
+plt.xlabel("epoch")
+plt.legend()
+plt.show()

@@ -1,4 +1,6 @@
+from datetime import datetime
 import os
+from pathlib import Path
 from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
@@ -125,4 +127,10 @@ _ = ax.set_yscale("log")
 _ = ax.set_xlabel("epoch")
 _ = ax.set_title("Losses during learning")
 _ = fig.legend()
+plt.savefig(
+    Path(
+        __file__
+        + f"/../training-{datetime.now().replace(microsecond=0).isoformat()}.png"
+    ).resolve()
+)
 plt.show()

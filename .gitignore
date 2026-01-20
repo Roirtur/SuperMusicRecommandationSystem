@@ -1,3 +1,4 @@
 train_triplets.txt
 MillionSongSubset/
 /data/*
+.env

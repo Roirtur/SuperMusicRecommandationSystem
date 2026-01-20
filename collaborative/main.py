@@ -117,8 +117,12 @@ for epoch in range(n_epochs):
 
     print(f"Loss: {losses[epoch]}, validation loss: {losses_validation[epoch]}")
 
-plt.plot(losses, label="Train loss")
-plt.plot(losses_validation, label="Validation loss")
-plt.xlabel("epoch")
-plt.legend()
+fig, ax = plt.subplots(figsize=(10, 5))
+
+_ = ax.plot(losses, label="Train loss")
+_ = ax.plot(losses_validation, label="Validation loss")
+_ = ax.set_yscale("log")
+_ = ax.set_xlabel("epoch")
+_ = ax.set_title("Losses during learning")
+_ = fig.legend()
 plt.show()

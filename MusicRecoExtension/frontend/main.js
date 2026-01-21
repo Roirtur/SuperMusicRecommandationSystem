@@ -231,7 +231,7 @@ class RecoController {
                     if (this.state.currentTrackSignature && currentSig) {
                         if (currentSig !== this.state.currentTrackSignature) {
                             console.log("Track changed manually! Stopping session.");
-                            this.ui.showNotification("🎵 Music interrupted! Stopping recommendation process.");
+                            this.ui.showNotification("Music interrupted! Stopping recommendation process.");
                             this.stopSession();
                             return;
                         }

@@ -680,22 +680,50 @@ class MusicRecoUI {
         const notification = document.createElement('div');
         notification.style.cssText = `
             position: fixed;
-            top: 20px;
+            top: 24px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, #FF5500 0%, #E04D00 100%);
+            background: linear-gradient(145deg, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
             color: white;
-            padding: 14px 24px;
-            border-radius: 10px;
+            padding: 14px 20px;
+            border-radius: 12px;
+            border: 2px solid #FF5500;
             z-index: 2147483647;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 13px;
-            font-weight: 600;
-            box-shadow: 0 6px 24px rgba(255, 85, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.2);
-            animation: slideDown 0.3s ease-out;
-            backdrop-filter: blur(10px);
+            font-weight: 500;
+            box-shadow: 0 0 30px rgba(255, 85, 0, 0.5), 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 85, 0, 0.2);
+            animation: slideDown 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         `;
-        notification.textContent = message;
+        
+        // Add icon SVG
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', '#FF5500');
+        icon.setAttribute('stroke-width', '2');
+        icon.setAttribute('stroke-linecap', 'round');
+        icon.setAttribute('stroke-linejoin', 'round');
+        icon.style.cssText = `
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            filter: drop-shadow(0 0 6px rgba(255, 85, 0, 0.6));
+        `;
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z');
+        icon.appendChild(path);
+        
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message;
+        
+        notification.appendChild(icon);
+        notification.appendChild(textSpan);
         
         // Add animation keyframes if not present
         if (!document.getElementById('reco-notification-style')) {

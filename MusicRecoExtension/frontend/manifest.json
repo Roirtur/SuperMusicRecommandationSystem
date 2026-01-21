@@ -1,28 +1,38 @@
 {
   "manifest_version": 3,
   "name": "SoundCloud Music Recommender",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Sidebar reco sur SoundCloud",
-  
   "icons": {
     "16": "icon.png",
     "48": "icon.png",
     "128": "icon.png"
   },
-
-  "permissions": ["storage", "activeTab"],
-  "host_permissions": ["*://*.soundcloud.com/*"],
-
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.soundcloud.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
-  
-  "content_scripts": [{
-    "matches": ["*://*.soundcloud.com/*"],
-    "js": ["content.js"],
-    "css": []
-  }],
-  
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.soundcloud.com/*"
+      ],
+      "js": [
+        "adapter.js",
+        "ui.js",
+        "main.js"
+      ],
+      "css": [
+        "style.css"
+      ]
+    }
+  ],
   "action": {
     "default_icon": {
       "16": "icon.png",

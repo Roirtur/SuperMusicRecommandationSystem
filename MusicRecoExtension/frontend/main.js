@@ -8,7 +8,9 @@ class RecoController {
             algoType: 'matriciel',
             listeningTime: 0,
             status: 'idle', // idle, playing, loading
-            isChangingTrack: false
+            isChangingTrack: false,
+            monitoredUrl: null,
+            currentTrackSignature: null 
         };
 
         this.init();
@@ -26,6 +28,7 @@ class RecoController {
         // UI Events
         this.ui.setEventHandler('onStart', () => this.triggerRecommendation());
         this.ui.setEventHandler('onNext', () => this.triggerRecommendation());
+        this.ui.setEventHandler('onStop', () => this.stopSession());
         
         this.ui.setEventHandler('onClose', () => {
              chrome.storage.local.set({ 'sidebarVisible': false });
@@ -78,18 +81,14 @@ class RecoController {
             }
 
             // State restoration
-            if (res.listeningTime) this.state.listeningTime = res.listeningTime;
+            // We do NOT restore 'playing' state to ensure fresh sessions on reload,
+            // unless we are in the middle of an autoplay sequence we triggered.
             
-            if (res.music_reco_state === 'playing') {
-                this.changeState('playing');
-                this.ui.updateTimer(this.state.listeningTime);
-            } else {
-                this.changeState('idle');
-            }
-
             // Autoplay Logic
             if (res.music_reco_autoplay) {
                 this.handleAutoplay();
+            } else {
+                 this.changeState('idle');
             }
         });
     }
@@ -107,6 +106,16 @@ class RecoController {
         if (newState === 'playing') this.ui.showView('playing');
     }
 
+    stopSession() {
+        console.log("Stopping session...");
+        this.changeState('idle');
+        this.state.listeningTime = 0;
+        this.state.monitoredUrl = null;
+        this.state.currentTrackSignature = null;
+        chrome.storage.local.set({ 'listeningTime': 0, 'music_reco_state': 'idle' });
+        this.ui.updateTimer(0);
+    }
+
     async triggerRecommendation() {
         console.log("Triggering recommendation...");
         
@@ -119,6 +128,8 @@ class RecoController {
         }
 
         this.changeState('loading');
+        this.state.monitoredUrl = null;
+        this.state.currentTrackSignature = null;
 
         // MOCK API CAIL
         // In real world, fetch(API_URL, { method: 'POST', body: ... })
@@ -159,6 +170,13 @@ class RecoController {
         if (success) {
             this.changeState('playing');
             chrome.storage.local.set({ 'music_reco_autoplay': false });
+            
+            // Wait a moment for the footer to update with the new song details
+            setTimeout(() => {
+                this.state.currentTrackSignature = this.adapter.getCurrentTrackDetails();
+                console.log("Tracking started for:", this.state.currentTrackSignature);
+            }, 2000);
+            
         } else {
             console.log("Autoplay failed.");
             this.changeState('idle');
@@ -169,6 +187,30 @@ class RecoController {
     startMonitoring() {
         setInterval(() => {
             if (this.adapter.isPlaying()) {
+                if (this.state.status === 'playing') {
+                     // Check if URL changed
+                     const currentUrl = window.location.pathname;
+                     if (!this.state.monitoredUrl) {
+                        this.state.monitoredUrl = currentUrl;
+                     } else if (this.state.monitoredUrl !== currentUrl) {
+                        // Sometimes URL changes but it's the same song (navigating while playing)
+                        // So checking track signature is better to detect song change
+                     }
+
+                     // Check if Track Changed (Manual click)
+                     const currentSig = this.adapter.getCurrentTrackDetails();
+                     if (this.state.currentTrackSignature && currentSig) {
+                         if (currentSig !== this.state.currentTrackSignature) {
+                             console.log("Track changed manually! Stopping session.");
+                             this.stopSession();
+                             return;
+                         }
+                     } else if (!this.state.currentTrackSignature && currentSig) {
+                         // Initialize if missed
+                         this.state.currentTrackSignature = currentSig;
+                     }
+                }
+
                 this.state.listeningTime++;
                 this.ui.updateTimer(this.state.listeningTime);
                 

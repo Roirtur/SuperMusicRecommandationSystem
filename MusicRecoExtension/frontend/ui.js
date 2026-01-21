@@ -164,6 +164,16 @@ class MusicRecoUI {
         };
 
         div.appendChild(btn);
+
+        const stopBtn = document.createElement('button');
+        stopBtn.className = 'secondary-btn';
+        stopBtn.style.marginTop = '10px';
+        stopBtn.style.backgroundColor = '#d63031';
+        stopBtn.innerHTML = '<span>⏹</span> Stop';
+        stopBtn.onclick = () => {
+            if (this.handlers.onStop) this.handlers.onStop();
+        };
+        div.appendChild(stopBtn);
         
         this.elements.timer = div.querySelector('#reco-timer');
         return div;

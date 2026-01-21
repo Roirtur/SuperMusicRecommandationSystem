@@ -121,6 +121,23 @@ class SoundCloudAdapter {
             max: parseInt(progress.getAttribute('aria-valuemax'), 10) || 0
         };
     }
+
+    /**
+     * Get details of the current track from the player footer
+     */
+    getCurrentTrackDetails() {
+        // SoundCloud footer classes
+        const titleEl = document.querySelector('.playControls .playbackSoundBadge__titleLink');
+        const artistEl = document.querySelector('.playControls .playbackSoundBadge__lightLink');
+        
+        if (!titleEl) return null;
+
+        // Use title + artist as a unique-ish signature
+        const title = titleEl.getAttribute('title') || titleEl.innerText;
+        const artist = artistEl ? (artistEl.getAttribute('title') || artistEl.innerText) : '';
+        
+        return `${artist} - ${title}`;
+    }
 }
 
 // Expose to global scope for other scripts

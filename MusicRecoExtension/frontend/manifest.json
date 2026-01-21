@@ -25,6 +25,7 @@
         "*://*.soundcloud.com/*"
       ],
       "js": [
+        "api.js",
         "adapter.js",
         "ui.js",
         "main.js"

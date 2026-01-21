@@ -3,6 +3,7 @@ class RecoController {
     constructor() {
         this.ui = new window.MusicRecoUI();
         this.adapter = new window.SoundCloudAdapter();
+        this.api = new window.MusicRecoAPI();
         this.state = {
             userId: null,
             algoType: 'matriciel',
@@ -10,7 +11,8 @@ class RecoController {
             status: 'idle', // idle, playing, loading
             isChangingTrack: false,
             monitoredUrl: null,
-            currentTrackSignature: null 
+            currentTrackSignature: null,
+            currentTrackId: null // Store current track being played
         };
 
         this.init();
@@ -107,20 +109,51 @@ class RecoController {
 
     stopSession() {
         console.log("Stopping session...");
+        
+        // Send feedback before stopping if we have data
+        if (this.state.listeningTime > 0 && this.state.currentTrackId) {
+            console.log(`Sending feedback: ${this.state.currentTrackId}, listened ${this.state.listeningTime}s`);
+            this.api.sendFeedback(
+                this.state.userId,
+                this.state.currentTrackId,
+                this.state.listeningTime
+            ).then(result => {
+                console.log('[Feedback] Result:', result);
+            }).catch(err => {
+                console.error('[Feedback] Error:', err);
+            });
+        }
+        
         this.changeState('idle');
         this.state.listeningTime = 0;
         this.state.monitoredUrl = null;
         this.state.currentTrackSignature = null;
-        chrome.storage.local.set({ 'listeningTime': 0, 'music_reco_state': 'idle' });
+        this.state.currentTrackId = null;
+        chrome.storage.local.set({ 
+            'listeningTime': 0, 
+            'music_reco_state': 'idle',
+            'currentTrackId': null 
+        });
         this.ui.updateTimer(0);
     }
 
     async triggerRecommendation() {
         console.log("Triggering recommendation...");
         
-        // Log previous session if any
-        if (this.state.listeningTime > 0) {
-            console.log(`Ended session: ${this.state.listeningTime}s`);
+        // Send feedback for previous session if any
+        if (this.state.listeningTime > 0 && this.state.currentTrackId) {
+            console.log(`Ending previous session: ${this.state.currentTrackId}, ${this.state.listeningTime}s`);
+            try {
+                const feedbackResult = await this.api.sendFeedback(
+                    this.state.userId,
+                    this.state.currentTrackId,
+                    this.state.listeningTime
+                );
+                console.log('[Feedback] Result:', feedbackResult);
+            } catch (err) {
+                console.error('[Feedback] Error:', err);
+            }
+            
             this.state.listeningTime = 0;
             chrome.storage.local.set({ 'listeningTime': 0 });
             this.ui.updateTimer(0);
@@ -129,35 +162,44 @@ class RecoController {
         this.changeState('loading');
         this.state.monitoredUrl = null;
         this.state.currentTrackSignature = null;
+        this.state.currentTrackId = null;
 
-        // MOCK API CAIL
-        // In real world, fetch(API_URL, { method: 'POST', body: ... })
-        const mockSongs = ["Hello - CardiB", "Blinding Lights - The Weeknd", "Bad Guy - Billie Eilish", "Shape of You - Ed Sheeran", "Levitating - Dua Lipa"];
-        const randomSong = mockSongs[Math.floor(Math.random() * mockSongs.length)];
-
-        // Simulate delay
-        await new Promise(r => setTimeout(r, 1500));
-        
-        console.log("Recommended:", randomSong);
-
-        // Set flags for next page load
-        chrome.storage.local.set({ 
-            'music_reco_autoplay': true, 
-            'music_reco_state': 'playing' 
-        }, () => {
-            // Navigate
-            this.adapter.search(randomSong);
+        try {
+            // Call API to get recommendation
+            const recommendation = await this.api.getRecommendation(
+                this.state.userId, 
+                this.state.algoType
+            );
             
-            // Handle SPA Navigation case (page doesn't reload)
-            this.adapter.waitForUrl('/search')
-                .then(() => {
-                    console.log("[MusicReco] URL changed, triggering autoplay logic for SPA");
-                    // Wait a bit for DOM to be stale/cleared before searching for new buttons
-                    return new Promise(r => setTimeout(r, 1000));
-                })
-                .then(() => this.handleAutoplay())
-                .catch(err => console.log("[MusicReco] SPA Navigation check timeout/error:", err));
-        });
+            console.log("Recommended:", recommendation.song_title, "via", recommendation.algorithm);
+            
+            // Store the track ID for feedback later
+            const recommendedTrack = recommendation.song_title;
+            
+            // Set flags for next page load
+            chrome.storage.local.set({ 
+                'music_reco_autoplay': true, 
+                'music_reco_state': 'playing',
+                'currentTrackId': recommendedTrack
+            }, () => {
+                // Navigate
+                this.adapter.search(recommendedTrack);
+                
+                // Handle SPA Navigation case (page doesn't reload)
+                this.adapter.waitForUrl('/search')
+                    .then(() => {
+                        console.log("[MusicReco] URL changed, triggering autoplay logic for SPA");
+                        // Wait a bit for DOM to be stale/cleared before searching for new buttons
+                        return new Promise(r => setTimeout(r, 1000));
+                    })
+                    .then(() => this.handleAutoplay())
+                    .catch(err => console.log("[MusicReco] SPA Navigation check timeout/error:", err));
+            });
+        } catch (error) {
+            console.error("Failed to get recommendation:", error);
+            this.ui.showNotification("Failed to get recommendation. Please try again.");
+            this.changeState('idle');
+        }
     }
 
     async handleAutoplay() {
@@ -174,6 +216,14 @@ class RecoController {
             setTimeout(() => {
                 this.state.currentTrackSignature = this.adapter.getCurrentTrackDetails();
                 console.log("Tracking started for:", this.state.currentTrackSignature);
+                
+                // Restore currentTrackId from storage for feedback
+                chrome.storage.local.get(['currentTrackId'], (res) => {
+                    if (res.currentTrackId) {
+                        this.state.currentTrackId = res.currentTrackId;
+                        console.log("Current track ID set:", this.state.currentTrackId);
+                    }
+                });
             }, 2000);
             
         } else {
@@ -230,6 +280,20 @@ class RecoController {
                     if (this.state.currentTrackSignature && currentSig) {
                         if (currentSig !== this.state.currentTrackSignature) {
                             console.log("Track changed manually! Stopping session.");
+                            
+                            // Send feedback before stopping
+                            if (this.state.listeningTime > 0 && this.state.currentTrackId) {
+                                this.api.sendFeedback(
+                                    this.state.userId,
+                                    this.state.currentTrackId,
+                                    this.state.listeningTime
+                                ).then(result => {
+                                    console.log('[Feedback] Manual stop result:', result);
+                                }).catch(err => {
+                                    console.error('[Feedback] Manual stop error:', err);
+                                });
+                            }
+                            
                             this.ui.showNotification("Music interrupted! Stopping recommendation process.");
                             this.stopSession();
                             return;

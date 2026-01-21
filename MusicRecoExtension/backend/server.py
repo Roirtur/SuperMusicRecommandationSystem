@@ -108,7 +108,7 @@ def recommend_next_track():
         c.execute("SELECT COUNT(*) FROM listening_history WHERE user_id = ?", (user_id,))
         count_history = c.fetchone()[0]
 
-        if count_history < 10:
+        if count_history < 5:
             algo_used = "cold_start_top50"
             
             # Récupère les 50 musiques les plus écoutées (somme des temps d'écoute/play_counts)
@@ -123,8 +123,7 @@ def recommend_next_track():
             if top_tracks:
                 suggestion = random.choice(top_tracks)
             else:
-                suggestion = "Shape of You - Ed Sheeran" # Fallback si base vide
-        
+                raise Exception
         else:
             # LOGIQUE MOCKÉE DES ALGOS (Si historique suffisant)
             if algo_type == 'content':
@@ -132,7 +131,7 @@ def recommend_next_track():
             elif algo_type == 'matriciel':
                 suggestion = "Bohemian Rhapsody - Queen"
             elif algo_type == 'mix':
-                suggestion = "Hotel California - Eagles"
+                suggestion = "Hotel California - The Eagles"
             else:
                 suggestion = "Billie Jean - Michael Jackson"
 
@@ -147,6 +146,73 @@ def recommend_next_track():
         "algorithm": algo_used,
         "status": "success"
     })
+
+@app.route('/user/history', methods=['GET'])
+def get_user_history():
+    """
+    Endpoint pour récupérer l'historique d'écoute d'un utilisateur.
+    Exemple URL: /user/history?userId=user_abc123
+    
+    Returns: Liste des musiques écoutées avec leur score total
+    """
+    user_id = request.args.get('userId')
+    
+    if not user_id:
+        return jsonify({"error": "userId parameter is required"}), 400
+    
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        
+        # Récupérer l'historique avec les scores
+        c.execute('''
+            SELECT 
+                lh.music_id,
+                lh.listening_time as score,
+                lh.algo_type,
+                lh.timestamp,
+                s.title,
+                s.artist,
+                s.duration
+            FROM listening_history lh
+            LEFT JOIN songs s ON lh.music_id = s.music_id
+            WHERE lh.user_id = ?
+            ORDER BY lh.timestamp DESC
+        ''', (user_id,))
+        
+        rows = c.fetchall()
+        
+        # Formatter les résultats
+        history = []
+        for row in rows:
+            history.append({
+                "music_id": row[0],
+                "score": row[1],
+                "algo_type": row[2],
+                "timestamp": row[3],
+                "title": row[4],
+                "artist": row[5],
+                "duration": row[6]
+            })
+        
+        # Calculer les statistiques
+        total_score = sum(item['score'] for item in history)
+        unique_songs = len(set(item['music_id'] for item in history))
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "total_songs_listened": len(history),
+            "unique_songs": unique_songs,
+            "total_score": total_score,
+            "history": history
+        })
+        
+    except Exception as e:
+        print(f"[ERROR] Error in /user/history: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/feedback/update', methods=['POST', 'GET'])
 def update_user_feedback():

@@ -31,7 +31,8 @@ class RecoController {
         this.ui.setEventHandler('onStop', () => this.stopSession());
         
         this.ui.setEventHandler('onClose', () => {
-             chrome.storage.local.set({ 'sidebarVisible': false });
+             // Just hide for current session, don't persist
+             this.ui.toggleVisibility(false);
         });
 
         this.ui.setEventHandler('onAlgoChange', (newAlgo) => {
@@ -54,7 +55,7 @@ class RecoController {
 
     loadStorage() {
         chrome.storage.local.get([
-            'userId', 'algoType', 'sidebarPos', 'sidebarVisible', 
+            'userId', 'algoType', 'sidebarPos', 
             'listeningTime', 'music_reco_autoplay', 'music_reco_state'
         ], (res) => {
             // User ID
@@ -75,10 +76,8 @@ class RecoController {
             // Position
             this.ui.restorePosition(res.sidebarPos);
 
-            // Visibility
-            if (res.sidebarVisible === false) {
-                this.ui.toggleVisibility(false);
-            }
+            // Always show sidebar by default on page load
+            this.ui.toggleVisibility(true);
 
             // State restoration
             // We do NOT restore 'playing' state to ensure fresh sessions on reload,
@@ -96,7 +95,7 @@ class RecoController {
     toggleSidebar() {
         const isHidden = (this.ui.container.style.display === 'none');
         this.ui.container.style.display = isHidden ? 'block' : 'none';
-        chrome.storage.local.set({ 'sidebarVisible': isHidden });
+        // Don't persist visibility state - always show on page reload
     }
 
     changeState(newState) {

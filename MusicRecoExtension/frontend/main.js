@@ -1,53 +1,68 @@
-// Controller
+/**
+ * Music Recommendation Controller
+ * 
+ * Main controller that coordinates the recommendation system.
+ * Manages state, UI updates, and communication between components.
+ * 
+ * @class RecoController
+ */
 class RecoController {
     constructor() {
+        // Initialize components
         this.ui = new window.MusicRecoUI();
         this.adapter = new window.SoundCloudAdapter();
         this.api = new window.MusicRecoAPI();
+        
+        // Application state
         this.state = {
             userId: null,
-            algoType: 'matriciel',
-            listeningTime: 0,
-            status: 'idle', // idle, playing, loading
-            isChangingTrack: false,
-            monitoredUrl: null,
-            currentTrackSignature: null,
-            currentTrackId: null // Store current track being played
+            algoType: 'matriciel',  // Default algorithm
+            listeningTime: 0,        // Time spent listening to current track (seconds)
+            status: 'idle',          // Current status: 'idle', 'playing', 'loading'
+            isChangingTrack: false,  // Flag to prevent duplicate track changes
+            monitoredUrl: null,      // URL being monitored
+            currentTrackSignature: null,  // Signature of current track (for change detection)
+            currentTrackId: null     // Track ID for feedback
         };
 
         this.init();
     }
 
+    /**
+     * Initialize the controller and set up all components.
+     */
     init() {
-        // Initialize UI
         this.ui.init();
         this.bindEvents();
         this.loadStorage();
         this.startMonitoring();
     }
 
+    /**
+     * Bind UI event handlers and Chrome runtime message listeners.
+     */
     bindEvents() {
-        // UI Events
+        // UI event handlers
         this.ui.setEventHandler('onStart', () => this.triggerRecommendation());
         this.ui.setEventHandler('onNext', () => this.triggerRecommendation());
         this.ui.setEventHandler('onStop', () => this.stopSession());
         
         this.ui.setEventHandler('onClose', () => {
-             // Just hide for current session, don't persist
+             // Hide sidebar for current session (doesn't persist)
              this.ui.toggleVisibility(false);
         });
 
         this.ui.setEventHandler('onAlgoChange', (newAlgo) => {
             this.state.algoType = newAlgo;
             chrome.storage.local.set({ 'algoType': newAlgo });
-            console.log("Algo changed to:", newAlgo);
+            console.log("[Controller] Algorithm changed to:", newAlgo);
         });
 
         this.ui.setEventHandler('onPositionChange', (pos) => {
             chrome.storage.local.set({ 'sidebarPos': pos });
         });
 
-        // Runtime Messages (from background/popup)
+        // Chrome extension message listener (from background script or popup)
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (request.action === 'toggleSidebar') {
                 this.toggleSidebar();
@@ -55,12 +70,15 @@ class RecoController {
         });
     }
 
+    /**
+     * Load persisted data from Chrome storage and initialize state.
+     */
     loadStorage() {
         chrome.storage.local.get([
             'userId', 'algoType', 'sidebarPos', 
             'listeningTime', 'music_reco_autoplay', 'music_reco_state'
         ], (res) => {
-            // User ID
+            // User ID: Generate if doesn't exist
             if (res.userId) {
                 this.state.userId = res.userId;
             } else {
@@ -69,23 +87,19 @@ class RecoController {
             }
             this.ui.setUserId(this.state.userId);
 
-            // Algo
+            // Algorithm selection
             if (res.algoType) {
                 this.state.algoType = res.algoType;
                 this.ui.setAlgo(res.algoType);
             }
 
-            // Position
+            // Sidebar position
             this.ui.restorePosition(res.sidebarPos);
 
             // Always show sidebar by default on page load
             this.ui.toggleVisibility(true);
 
-            // State restoration
-            // We do NOT restore 'playing' state to ensure fresh sessions on reload,
-            // unless we are in the middle of an autoplay sequence we triggered.
-            
-            // Autoplay Logic
+            // Autoplay logic: Handle pending recommendation playback
             if (res.music_reco_autoplay) {
                 this.handleAutoplay();
             } else {
@@ -94,12 +108,19 @@ class RecoController {
         });
     }
 
+    /**
+     * Toggle sidebar visibility.
+     */
     toggleSidebar() {
         const isHidden = (this.ui.container.style.display === 'none');
         this.ui.container.style.display = isHidden ? 'block' : 'none';
-        // Don't persist visibility state - always show on page reload
     }
 
+    /**
+     * Change application state and update UI accordingly.
+     * 
+     * @param {string} newState - New state ('idle', 'loading', 'playing')
+     */
     changeState(newState) {
         this.state.status = newState;
         if (newState === 'idle') this.ui.showView('initial');
@@ -107,12 +128,15 @@ class RecoController {
         if (newState === 'playing') this.ui.showView('playing');
     }
 
+    /**
+     * Stop the current listening session and send feedback.
+     */
     stopSession() {
-        console.log("Stopping session...");
+        console.log("[Controller] Stopping session...");
         
-        // Send feedback before stopping if we have data
+        // Send feedback before stopping if we have listening data
         if (this.state.listeningTime > 0 && this.state.currentTrackId) {
-            console.log(`Sending feedback: ${this.state.currentTrackId}, listened ${this.state.listeningTime}s`);
+            console.log(`[Controller] Sending feedback: ${this.state.currentTrackId}, listened ${this.state.listeningTime}s`);
             this.api.sendFeedback(
                 this.state.userId,
                 this.state.currentTrackId,
@@ -124,6 +148,7 @@ class RecoController {
             });
         }
         
+        // Reset state
         this.changeState('idle');
         this.state.listeningTime = 0;
         this.state.monitoredUrl = null;
@@ -137,12 +162,15 @@ class RecoController {
         this.ui.updateTimer(0);
     }
 
+    /**
+     * Trigger a new recommendation request and navigate to the recommended track.
+     */
     async triggerRecommendation() {
-        console.log("Triggering recommendation...");
+        console.log("[Controller] Triggering recommendation...");
         
         // Send feedback for previous session if any
         if (this.state.listeningTime > 0 && this.state.currentTrackId) {
-            console.log(`Ending previous session: ${this.state.currentTrackId}, ${this.state.listeningTime}s`);
+            console.log(`[Controller] Ending previous session: ${this.state.currentTrackId}, ${this.state.listeningTime}s`);
             try {
                 const feedbackResult = await this.api.sendFeedback(
                     this.state.userId,
@@ -159,52 +187,55 @@ class RecoController {
             this.ui.updateTimer(0);
         }
 
+        // Reset state for new recommendation
         this.changeState('loading');
         this.state.monitoredUrl = null;
         this.state.currentTrackSignature = null;
         this.state.currentTrackId = null;
 
         try {
-            // Call API to get recommendation
+            // Get recommendation from API
             const recommendation = await this.api.getRecommendation(
                 this.state.userId, 
                 this.state.algoType
             );
             
-            console.log("Recommended:", recommendation.song_title, "via", recommendation.algorithm);
+            console.log("[Controller] Recommended:", recommendation.song_title, "via", recommendation.algorithm);
             
-            // Store the track ID for feedback later
             const recommendedTrack = recommendation.song_title;
             
-            // Set flags for next page load
+            // Store flags for autoplay after navigation
             chrome.storage.local.set({ 
                 'music_reco_autoplay': true, 
                 'music_reco_state': 'playing',
                 'currentTrackId': recommendedTrack
             }, () => {
-                // Navigate
+                // Navigate to search results
                 this.adapter.search(recommendedTrack);
                 
-                // Handle SPA Navigation case (page doesn't reload)
+                // Handle SPA navigation (page doesn't reload)
                 this.adapter.waitForUrl('/search')
                     .then(() => {
-                        console.log("[MusicReco] URL changed, triggering autoplay logic for SPA");
-                        // Wait a bit for DOM to be stale/cleared before searching for new buttons
+                        console.log("[Controller] URL changed, triggering autoplay logic for SPA");
+                        // Wait for DOM to update before searching for play buttons
                         return new Promise(r => setTimeout(r, 1000));
                     })
                     .then(() => this.handleAutoplay())
-                    .catch(err => console.log("[MusicReco] SPA Navigation check timeout/error:", err));
+                    .catch(err => console.log("[Controller] SPA navigation check timeout/error:", err));
             });
         } catch (error) {
-            console.error("Failed to get recommendation:", error);
+            console.error("[Controller] Failed to get recommendation:", error);
             this.ui.showNotification("Failed to get recommendation. Please try again.");
             this.changeState('idle');
         }
     }
 
+    /**
+     * Handle autoplay logic after navigation to search results.
+     */
     async handleAutoplay() {
-        console.log("Autoplay active, trying to play...");
-        this.changeState('loading'); // Show loading while finding button
+        console.log("[Controller] Autoplay active, attempting to play...");
+        this.changeState('loading');
         
         const success = await this.adapter.playFirstResult();
         
@@ -212,44 +243,47 @@ class RecoController {
             this.changeState('playing');
             chrome.storage.local.set({ 'music_reco_autoplay': false });
             
-            // Wait a moment for the footer to update with the new song details
+            // Wait for the player to update with new song details
             setTimeout(() => {
                 this.state.currentTrackSignature = this.adapter.getCurrentTrackDetails();
-                console.log("Tracking started for:", this.state.currentTrackSignature);
+                console.log("[Controller] Tracking started for:", this.state.currentTrackSignature);
                 
                 // Restore currentTrackId from storage for feedback
                 chrome.storage.local.get(['currentTrackId'], (res) => {
                     if (res.currentTrackId) {
                         this.state.currentTrackId = res.currentTrackId;
-                        console.log("Current track ID set:", this.state.currentTrackId);
+                        console.log("[Controller] Current track ID set:", this.state.currentTrackId);
                     }
                 });
             }, 2000);
             
         } else {
-            console.log("Autoplay failed.");
+            console.log("[Controller] Autoplay failed.");
             this.changeState('idle');
             chrome.storage.local.set({ 'music_reco_autoplay': false });
         }
     }
 
+    /**
+     * Start monitoring playback state and track changes.
+     * Uses event-driven approach with minimal polling for performance.
+     */
     startMonitoring() {
-        // Track playing status and song changes using event-driven approach
         let monitoringInterval = null;
         
-        // Setup History API listener for URL/navigation changes
+        // Setup history API listener for navigation changes
         this.adapter.onUrlChange((newUrl) => {
-            console.log("[MusicReco] URL changed via SPA navigation:", newUrl);
+            console.log("[Controller] URL changed via SPA navigation:", newUrl);
             if (this.state.status === 'playing') {
-                // Check if we navigated away from music
+                // Check if user navigated away from playback context
                 if (!newUrl.includes('/you/') && !newUrl.includes('/search')) {
-                    console.log("Navigated away from playback context");
+                    console.log("[Controller] Navigated away from playback context");
                 }
             }
         });
 
-        // Polling is kept minimal - only tick when playing to update UI timer
-        let wasPlayingBefore = false; // Track previous play state
+        // Polling: Only tick when playing to update UI timer and detect track changes
+        let wasPlayingBefore = false;
         
         const startTickingInterval = () => {
             if (monitoringInterval) return; // Already running
@@ -257,7 +291,7 @@ class RecoController {
             monitoringInterval = setInterval(() => {
                 const isCurrentlyPlaying = this.adapter.isPlaying();
 
-                // Handle pause/unpause
+                // Handle pause/resume
                 if (!isCurrentlyPlaying && wasPlayingBefore) {
                     // Just paused - keep ticking but don't increment time
                     wasPlayingBefore = false;
@@ -265,7 +299,7 @@ class RecoController {
                 }
                 
                 if (isCurrentlyPlaying && !wasPlayingBefore) {
-                    // Just unpaused - resume ticking
+                    // Just resumed - continue ticking
                     wasPlayingBefore = true;
                 }
 
@@ -275,11 +309,11 @@ class RecoController {
                 }
 
                 if (this.state.status === 'playing') {
-                    // Update track signature if changed
+                    // Check for track changes (user manually changed song)
                     const currentSig = this.adapter.getCurrentTrackDetails();
                     if (this.state.currentTrackSignature && currentSig) {
                         if (currentSig !== this.state.currentTrackSignature) {
-                            console.log("Track changed manually! Stopping session.");
+                            console.log("[Controller] Track changed manually! Stopping session.");
                             
                             // Send feedback before stopping
                             if (this.state.listeningTime > 0 && this.state.currentTrackId) {
@@ -294,7 +328,7 @@ class RecoController {
                                 });
                             }
                             
-                            this.ui.showNotification("Music interrupted! Stopping recommendation process.");
+                            this.ui.showNotification("Track changed! Stopping recommendation session.");
                             this.stopSession();
                             return;
                         }
@@ -306,19 +340,19 @@ class RecoController {
                     this.state.listeningTime++;
                     this.ui.updateTimer(this.state.listeningTime);
                     
-                    // Backup to storage every 5s
+                    // Periodically backup to storage (every 5 seconds)
                     if (this.state.listeningTime % 5 === 0) {
                         chrome.storage.local.set({ 'listeningTime': this.state.listeningTime });
                     }
 
-                    // Check for end of track
+                    // Check for end of track (auto-advance)
                     const progress = this.adapter.getProgress();
                     if (progress && progress.max > 0) {
-                        // If less than 2s remaining
+                        // If less than 2 seconds remaining
                         if (progress.current >= progress.max - 2 && progress.current > 1) {
                             if (!this.state.isChangingTrack) {
                                 this.state.isChangingTrack = true;
-                                console.log("Track finished. Autoplaying next...");
+                                console.log("[Controller] Track finished. Auto-playing next...");
                                 this.triggerRecommendation();
                             }
                         } else {
@@ -326,11 +360,10 @@ class RecoController {
                         }
                     }
                 }
-            }, 1000);
+            }, 1000); // Tick every second
         };
 
-        // Start ticking when we enter 'playing' state
-        // We'll hook this via state changes
+        // Hook into state changes to start/stop monitoring interval
         const originalChangeState = this.changeState.bind(this);
         this.changeState = (newState) => {
             originalChangeState(newState);
@@ -346,5 +379,5 @@ class RecoController {
     }
 }
 
-// Start
+// Initialize controller when script loads
 new RecoController();

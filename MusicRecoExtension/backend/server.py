@@ -9,44 +9,64 @@ import math
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
 DB_NAME = "music_reco.db"
+DEFAULT_SONG_DURATION = 210  # Default duration in seconds (3m 30s)
+MAX_SCORE = 10
+COLD_START_THRESHOLD = 5  # Minimum tracks needed before using collaborative filtering
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
 
 def compute_score(listened_seconds, total_duration=None):
     """
-    Calcule un score entier entre 0 et 10 basé sur le TAUX de complétion.
-    Formule Linéaire : ceil(Ratio * 10)
+    Calculate an engagement score between 0 and 10 based on completion ratio.
     
-    Exemples demandés :
-    - Écoute 10% -> 1 pt
-    - Écoute 50% -> 5 pts
-    - Écoute 100% -> 10 pts
+    Formula: ceil(completion_ratio * 10)
     
-    Si duration inconnue, on suppose une moyenne de 210s (3m30).
+    Examples:
+        - 10% listened  -> 1 point
+        - 50% listened  -> 5 points
+        - 100% listened -> 10 points
+    
+    Args:
+        listened_seconds (float): Number of seconds the user listened to the track
+        total_duration (float, optional): Total duration of the track in seconds.
+                                         Defaults to 210s (3m 30s) if not provided.
+    
+    Returns:
+        int: Engagement score between 0 and 10
     """
-    MAX_SCORE = 10
-    default_duration = 210 # 3m30
+    duration = total_duration if (total_duration and total_duration > 0) else DEFAULT_SONG_DURATION
     
-    duration = total_duration if (total_duration and total_duration > 0) else default_duration
-    
-    # Cap le temps écouté à la durée (pas plus de 100%)
+    # Cap listened time at total duration (max 100% completion)
     actual_listened = min(listened_seconds, duration)
     
-    # Ratio entre 0.0 et 1.0
+    # Calculate completion ratio (0.0 to 1.0)
     completion_ratio = actual_listened / duration
     
-    # Formule linéaire : Ratio * MaxScore
-    # Utilisation de ceil pour arrondir à l'entier supérieur (ex: 5% -> 0.5 -> 1)
+    # Linear formula: ratio * max_score, rounded up
     score = math.ceil(completion_ratio * MAX_SCORE)
     
     return int(score)
 
 def init_db():
-    """Initialise la base de données SQLite si elle n'existe pas."""
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
+    """
+    Initialize SQLite database if it doesn't exist.
     
-    # Table des métadonnées musiques (pour stocker la durée notamment)
-    c.execute('''
+    Creates two tables:
+        - songs: Store song metadata (title, artist, duration)
+        - listening_history: Track user listening sessions and engagement scores
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Songs metadata table (stores duration and track information)
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS songs (
             music_id TEXT PRIMARY KEY,
             title TEXT,
@@ -55,8 +75,8 @@ def init_db():
         )
     ''')
 
-    # Création de la table historique
-    c.execute('''
+    # Listening history table (tracks user engagement)
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS listening_history (
             user_id TEXT NOT NULL,
             music_id TEXT NOT NULL,
@@ -68,64 +88,91 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-    print(f"Base de données '{DB_NAME}' initialisée/vérifiée.")
+    print(f"Database '{DB_NAME}' initialized successfully.")
 
 
-# --- Placeholder Data / Logic ---
-# In a real scenario, you would load your models and datasets here.
-# e.g., model = load_model('model.pkl')
-# df = pd.read_csv('clean_dataset.csv')
+# =============================================================================
+# API ENDPOINTS
+# =============================================================================
 
 @app.route('/')
 def home():
-    return "SoundCloud Recommender API is running!"
+    """Root endpoint - API status check."""
+    return jsonify({
+        "service": "SoundCloud Music Recommender API",
+        "status": "running",
+        "version": "1.0"
+    })
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "healthy", "service": "music-reco-api"})
+    """Health check endpoint for monitoring."""
+    return jsonify({
+        "status": "healthy",
+        "service": "music-reco-api"
+    })
 
 @app.route('/recommend/next', methods=['GET'])
 def recommend_next_track():
     """
-    Endpoint principal pour obtenir la PROCHAINE musique.
-    Permet l'appel via Query Params (GET standard) ou JSON (si besoin).
-    Exemple URL: /recommend/next?userId=toto&algoType=matriciel
+    Get next recommended track for a user.
+    
+    Supports both query parameters (preferred) and JSON body.
+    
+    Query Parameters:
+        userId (str): Unique user identifier
+        algoType (str): Algorithm type - 'matriciel', 'content', or 'mix'
+                       Defaults to 'matriciel'
+    
+    Returns:
+        JSON: {
+            "song_title": str,
+            "algorithm": str,
+            "status": "success"
+        }
+    
+    Example:
+        GET /recommend/next?userId=user123&algoType=matriciel
     """
-    # Supporte request.args (URL) ou request.json (Body)
+    # Support both query parameters and JSON body
     user_id = request.args.get('userId') or (request.json.get('userId') if request.json else None)
     algo_type = request.args.get('algoType') or (request.json.get('algoType') if request.json else 'matriciel')
     
-    print(f"[RECOMMANDATION] ID: {user_id} | Algo: {algo_type}")
+    print(f"[RECOMMENDATION] User: {user_id} | Algorithm: {algo_type}")
 
     suggestion = "Default Track"
     algo_used = algo_type
 
     try:
         conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
+        cursor = conn.cursor()
         
-        # 2. CHECK COLD START : L'utilisateur a-t-il assez d'historique ?
-        c.execute("SELECT COUNT(*) FROM listening_history WHERE user_id = ?", (user_id,))
-        count_history = c.fetchone()[0]
+        # Check for cold start: Does user have sufficient listening history?
+        cursor.execute("SELECT COUNT(*) FROM listening_history WHERE user_id = ?", (user_id,))
+        history_count = cursor.fetchone()[0]
 
-        if count_history < 5:
+        # Cold start scenario: Less than required tracks in history
+        if history_count < COLD_START_THRESHOLD:
             algo_used = "cold_start_top50"
             
-            # Récupère les 50 musiques les plus écoutées (somme des temps d'écoute/play_counts)
-            c.execute('''
+            # Get top 50 most popular tracks (by total listening time)
+            cursor.execute('''
                 SELECT music_id FROM listening_history
                 GROUP BY music_id
                 ORDER BY SUM(listening_time) DESC
                 LIMIT 50
             ''')
-            top_tracks = [row[0] for row in c.fetchall()]
+            top_tracks = [row[0] for row in cursor.fetchall()]
             
             if top_tracks:
                 suggestion = random.choice(top_tracks)
             else:
-                raise Exception
+                # No tracks in database at all - use fallback
+                suggestion = "Bohemian Rhapsody - Queen"
+                algo_used = "fallback_default"
         else:
-            # LOGIQUE MOCKÉE DES ALGOS (Si historique suffisant)
+            # User has sufficient history - use algorithm-specific logic
+            # TODO: Replace with actual ML models
             if algo_type == 'content':
                 suggestion = "Stairway to Heaven - Led Zeppelin"
             elif algo_type == 'matriciel':
@@ -138,8 +185,9 @@ def recommend_next_track():
         conn.close()
 
     except Exception as e:
-        print(f"[ERROR] Erreur BDD dans /recommend/next : {e}")
-        suggestion = "Error Track"
+        print(f"[ERROR] Database error in /recommend/next: {e}")
+        suggestion = "Bohemian Rhapsody - Queen"  # Fallback track
+        algo_used = "error_fallback"
 
     return jsonify({
         "song_title": suggestion,
@@ -150,10 +198,23 @@ def recommend_next_track():
 @app.route('/user/history', methods=['GET'])
 def get_user_history():
     """
-    Endpoint pour récupérer l'historique d'écoute d'un utilisateur.
-    Exemple URL: /user/history?userId=user_abc123
+    Get user's listening history with engagement scores.
     
-    Returns: Liste des musiques écoutées avec leur score total
+    Query Parameters:
+        userId (str, required): User identifier
+    
+    Returns:
+        JSON: {
+            "status": "success",
+            "user_id": str,
+            "total_songs_listened": int,
+            "unique_songs": int,
+            "total_score": int,
+            "history": [list of listening sessions]
+        }
+    
+    Example:
+        GET /user/history?userId=user_abc123
     """
     user_id = request.args.get('userId')
     
@@ -162,10 +223,10 @@ def get_user_history():
     
     try:
         conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
+        cursor = conn.cursor()
         
-        # Récupérer l'historique avec les scores
-        c.execute('''
+        # Retrieve listening history with scores
+        cursor.execute('''
             SELECT 
                 lh.music_id,
                 lh.listening_time as score,
@@ -180,9 +241,9 @@ def get_user_history():
             ORDER BY lh.timestamp DESC
         ''', (user_id,))
         
-        rows = c.fetchall()
+        rows = cursor.fetchall()
         
-        # Formatter les résultats
+        # Format results
         history = []
         for row in rows:
             history.append({
@@ -195,7 +256,7 @@ def get_user_history():
                 "duration": row[6]
             })
         
-        # Calculer les statistiques
+        # Calculate statistics
         total_score = sum(item['score'] for item in history)
         unique_songs = len(set(item['music_id'] for item in history))
         
@@ -217,8 +278,26 @@ def get_user_history():
 @app.route('/feedback/update', methods=['POST', 'GET'])
 def update_user_feedback():
     """
-    Endpoint appelé à la FIN d'une écoute (ou skip).
-    Input JSON: { "userId": "...", "musicId": "...", "listeningTime": 120 }
+    Record user listening session feedback.
+    
+    Called when user finishes listening to a track (or skips).
+    Calculates engagement score based on listening duration.
+    
+    Request Body (JSON) or Query Parameters:
+        userId (str): User identifier
+        musicId (str): Track identifier (or songTitle)
+        listeningTime (float): Seconds listened
+    
+    Returns:
+        JSON: {
+            "status": "success",
+            "message": str,
+            "score_computed": int
+        }
+    
+    Example:
+        POST /feedback/update
+        {"userId": "user123", "musicId": "Song - Artist", "listeningTime": 120}
     """
     data = request.json if request.is_json else {}
     
@@ -226,31 +305,29 @@ def update_user_feedback():
     music_id = data.get('musicId') or request.args.get('musicId') or data.get('songTitle') or request.args.get('songTitle')
     time_listened = float(data.get('listeningTime') or request.args.get('listeningTime') or 0)
     
-    # 1. Sauvegarde SQL et Récupération Durée
     try:
         conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
+        cursor = conn.cursor()
 
-        # A. Récupérer la durée de la chanson depuis la table 'songs'
-        c.execute("SELECT duration FROM songs WHERE music_id = ?", (music_id,))
-        row = c.fetchone()
+        # Retrieve track duration from database
+        cursor.execute("SELECT duration FROM songs WHERE music_id = ?", (music_id,))
+        row = cursor.fetchone()
         
-        total_duration = 0
-        if row:
+        if row and row[0]:
             total_duration = row[0]
-            print(f"[FEEDBACK] Durée trouvée en BDD pour '{music_id}': {total_duration}s")
+            print(f"[FEEDBACK] Duration found in DB for '{music_id}': {total_duration}s")
         else:
-            total_duration = 210 # Fallback 3m30
-            print(f"[FEEDBACK] Durée NON trouvée pour '{music_id}'. Utilisation defaut: 210s")
+            total_duration = DEFAULT_SONG_DURATION
+            print(f"[FEEDBACK] Duration not found for '{music_id}'. Using default: {DEFAULT_SONG_DURATION}s")
 
-        print(f"[FEEDBACK] User {user_id} a écouté '{music_id}' pendant {time_listened}s (sur {total_duration}s)")
+        print(f"[FEEDBACK] User {user_id} listened to '{music_id}' for {time_listened}s (out of {total_duration}s)")
 
-        # B. Calcul du SCORE
+        # Calculate engagement score
         interest_score = compute_score(time_listened, total_duration)
-        print(f"   -> Score (Ratio): {interest_score} / 10")
+        print(f"   -> Computed score: {interest_score} / {MAX_SCORE}")
 
-        # C. UPSERT dans listening_history
-        c.execute('''
+        # Insert or update listening history (cumulative score)
+        cursor.execute('''
             INSERT INTO listening_history (user_id, music_id, listening_time) 
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, music_id) 
@@ -264,85 +341,82 @@ def update_user_feedback():
         
         return jsonify({
             "status": "success", 
-            "message": "Données sauvegardées.",
+            "message": "Feedback recorded successfully",
             "score_computed": interest_score
         })
         
     except Exception as e:
-        print(f"Erreur SQL: {e}")
+        print(f"[ERROR] SQL error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/sync', methods=['POST', 'GET'])
 def sync_data():
     """
-    Route pour importer les données du fichier merged_data.pkl dans la base SQLite.
-    Cherche le fichier dans ../../data/merged_data.pkl (relatif à server.py).
+    Import data from merged_data.pkl file into SQLite database.
+    
+    Searches for the file at: ../../data/merged_data.pkl (relative to server.py)
+    Falls back to mixed_data.pkl if merged_data.pkl not found.
+    
+    Returns:
+        JSON: {
+            "status": "success",
+            "message": str,
+            "sample_music_id": str
+        }
+    
+    Note: This endpoint is typically called once during initial setup.
     """
     try:
-        # 1. Localiser le fichier pkl
+        # Locate pickle file
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        # Remonter de 2 niveaux : Back -> MusicRecoExtension -> SuperMusicRecommandationSystem
-        # Puis descendre dans data/
+        # Navigate: backend -> MusicRecoExtension -> SuperMusicRecommandationSystem -> data
         pkl_path = os.path.join(base_dir, '..', '..', 'data', 'merged_data.pkl')
         
-        # Fallback naming (mixed_data.pkl comme demandé, ou merged_data.pkl comme dans le notebook)
+        # Fallback to alternative filename
         if not os.path.exists(pkl_path):
             pkl_path = os.path.join(base_dir, '..', '..', 'data', 'mixed_data.pkl')
 
-        print(f"[SYNC] Recherche du fichier : {pkl_path}")
+        print(f"[SYNC] Searching for file: {pkl_path}")
         if not os.path.exists(pkl_path):
-            return jsonify({"error": f"Fichier non trouvé. Attendu ici : {pkl_path}"}), 404
+            return jsonify({"error": f"File not found. Expected at: {pkl_path}"}), 404
 
-        # 2. Charger le DataFrame
-        print("[SYNC] Chargement du DataFrame (cela peut prendre un moment)...")
+        # Load DataFrame
+        print("[SYNC] Loading DataFrame (this may take a moment)...")
         df = pd.read_pickle(pkl_path)
-        print(f"[SYNC] DataFrame chargé. {len(df)} lignes.")
+        print(f"[SYNC] DataFrame loaded. {len(df)} rows.")
         
-        # 3. Préparer les données pour l'insertion
-        # On a besoin de : user_id, music_id, listening_time, algo_type
-        # mapping : 
-        #   user_id -> user_id
-        #   music_id -> title + " - " + artist_name
-        #   listening_time -> play_count * duration
-        #   algo_type -> 'import_msd'
-
-        # Vérification des colonnes nécessaires
+        # Validate required columns
         required_cols = ['user_id', 'title', 'artist_name', 'play_count', 'duration']
         missing_cols = [c for c in required_cols if c not in df.columns]
         if missing_cols:
-             return jsonify({"error": f"Colonnes manquantes dans le pkl: {missing_cols}"}), 400
+             return jsonify({"error": f"Missing columns in pickle file: {missing_cols}"}), 400
 
-        print("[SYNC] Transformation des données...")
+        # Transform data for database
+        print("[SYNC] Transforming data...")
         df['db_music_id'] = df['title'] + ' - ' + df['artist_name']
-        
-        # Modification demandée : listening_time = play_count (car duration souvent manquante/nulle)
-        # df['db_listening_time'] = (df['play_count'] * df['duration']).fillna(0).astype(int) 
         df['db_listening_time'] = df['play_count'].fillna(0).astype(int)
-        
         df['db_algo_type'] = 'import_msd'
 
-        # A. Insertion des SONGS (Metadata)
-        print("[SYNC] Insertion des métadonnées Songs...")
+        # Insert song metadata
+        print("[SYNC] Inserting song metadata...")
         songs_df = df[['db_music_id', 'title', 'artist_name', 'duration']].drop_duplicates(subset=['db_music_id'])
-        songs_data = songs_subset = songs_df.to_records(index=False).tolist()
+        songs_data = songs_df.to_records(index=False).tolist()
         
         conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
+        cursor = conn.cursor()
         
-        c.executemany('''
+        cursor.executemany('''
             INSERT OR IGNORE INTO songs (music_id, title, artist, duration)
             VALUES (?, ?, ?, ?)
         ''', songs_data)
         
-        # B. Insertion de l'HISTORIQUE
-        print("[SYNC] Insertion de l'historique User...")
-        # Sélectionner les colonnes pour l'insertion
+        # Insert listening history
+        print("[SYNC] Inserting user listening history...")
         insert_data = df[['user_id', 'db_music_id', 'db_listening_time', 'db_algo_type']].to_records(index=False)
-        data_list = list(insert_data) # Convertir en liste de tuples
+        data_list = list(insert_data)
 
-        # 4. Insertion en BDD
-        # On cumule le listening_time si collision
-        c.executemany('''
+        # Upsert: cumulative listening time on conflict
+        cursor.executemany('''
             INSERT INTO listening_history (user_id, music_id, listening_time, algo_type) 
             VALUES (?, ?, ?, ?)
             ON CONFLICT(user_id, music_id) 
@@ -354,10 +428,10 @@ def sync_data():
         conn.commit()
         conn.close()
         
-        print("[SYNC] Import terminé avec succès.")
+        print("[SYNC] Import completed successfully.")
         return jsonify({
             "status": "success",
-            "message": f"Importé {len(data_list)} lignes depuis {os.path.basename(pkl_path)}",
+            "message": f"Imported {len(data_list)} rows from {os.path.basename(pkl_path)}",
             "sample_music_id": data_list[0][1] if data_list else "None"
         })
 
@@ -368,6 +442,14 @@ def sync_data():
         return jsonify({"error": str(e)}), 500
 
 
+# =============================================================================
+# APPLICATION STARTUP
+# =============================================================================
+
 if __name__ == '__main__':
     init_db()
+    print("\n" + "="*60)
+    print(" SoundCloud Music Recommender API")
+    print(" Server starting on http://localhost:5000")
+    print("="*60 + "\n")
     app.run(debug=True, port=5000)

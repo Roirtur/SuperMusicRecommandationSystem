@@ -1,11 +1,18 @@
-// API Configuration and Service
+/**
+ * Music Recommendation API Service
+ * 
+ * Handles communication with the backend recommendation server.
+ * Supports both real backend and mock mode for development/testing.
+ * 
+ * @class MusicRecoAPI
+ */
 class MusicRecoAPI {
     constructor() {
-        // Backend API Configuration
+        // Backend configuration
         this.baseUrl = 'http://localhost:5000';
         this.useMockData = false; // Set to true to use mock data instead of backend
         
-        // Mock data for testing without backend
+        // Mock song collection for testing without backend
         this.mockSongs = [
             "Hello - Cardi B",
             "Blinding Lights - The Weeknd",
@@ -44,8 +51,9 @@ class MusicRecoAPI {
     }
 
     /**
-     * Get next track recommendation
-     * @param {string} userId - User ID
+     * Get next track recommendation from the backend or mock data.
+     * 
+     * @param {string} userId - Unique user identifier
      * @param {string} algoType - Algorithm type ('matriciel', 'content', 'mix')
      * @returns {Promise<{song_title: string, algorithm: string, status: string}>}
      */
@@ -81,9 +89,10 @@ class MusicRecoAPI {
     }
 
     /**
-     * Send feedback about listening session
-     * @param {string} userId - User ID
-     * @param {string} musicId - Music ID (title)
+     * Send user feedback about a listening session.
+     * 
+     * @param {string} userId - Unique user identifier
+     * @param {string} musicId - Track identifier (title)
      * @param {number} listeningTime - Time listened in seconds
      * @returns {Promise<{status: string, message: string, score_computed?: number}>}
      */
@@ -128,15 +137,18 @@ class MusicRecoAPI {
     }
 
     /**
-     * Get mock recommendation (internal helper)
+     * Generate mock recommendation for testing.
+     * 
      * @private
+     * @param {string} algoType - Algorithm type
+     * @returns {Object} Mock recommendation response
      */
     _getMockRecommendation(algoType) {
         console.log('[API] Using mock recommendation');
         
         const randomSong = this.mockSongs[Math.floor(Math.random() * this.mockSongs.length)];
         
-        // Simulate different recommendations per algorithm
+        // Different recommendations per algorithm type
         let song = randomSong;
         if (algoType === 'content') {
             song = "Stairway to Heaven - Led Zeppelin";
@@ -154,8 +166,9 @@ class MusicRecoAPI {
     }
 
     /**
-     * Enable or disable mock mode
-     * @param {boolean} enabled
+     * Enable or disable mock mode for development.
+     * 
+     * @param {boolean} enabled - True to enable mock mode
      */
     setMockMode(enabled) {
         this.useMockData = enabled;
@@ -163,7 +176,8 @@ class MusicRecoAPI {
     }
 
     /**
-     * Update base URL for backend
+     * Update backend base URL.
+     * 
      * @param {string} url - New base URL
      */
     setBaseUrl(url) {
@@ -172,5 +186,5 @@ class MusicRecoAPI {
     }
 }
 
-// Expose to global scope
+// Expose to global scope for other content scripts
 window.MusicRecoAPI = MusicRecoAPI;

@@ -185,56 +185,84 @@ class RecoController {
     }
 
     startMonitoring() {
-        setInterval(() => {
-            if (this.adapter.isPlaying()) {
-                if (this.state.status === 'playing') {
-                     // Check if URL changed
-                     const currentUrl = window.location.pathname;
-                     if (!this.state.monitoredUrl) {
-                        this.state.monitoredUrl = currentUrl;
-                     } else if (this.state.monitoredUrl !== currentUrl) {
-                        // Sometimes URL changes but it's the same song (navigating while playing)
-                        // So checking track signature is better to detect song change
-                     }
-
-                     // Check if Track Changed (Manual click)
-                     const currentSig = this.adapter.getCurrentTrackDetails();
-                     if (this.state.currentTrackSignature && currentSig) {
-                         if (currentSig !== this.state.currentTrackSignature) {
-                             console.log("Track changed manually! Stopping session.");
-                             this.stopSession();
-                             return;
-                         }
-                     } else if (!this.state.currentTrackSignature && currentSig) {
-                         // Initialize if missed
-                         this.state.currentTrackSignature = currentSig;
-                     }
-                }
-
-                this.state.listeningTime++;
-                this.ui.updateTimer(this.state.listeningTime);
-                
-                // Backup every 5s
-                if (this.state.listeningTime % 5 === 0) {
-                    chrome.storage.local.set({ 'listeningTime': this.state.listeningTime });
-                }
-
-                // Check for end of track
-                const progress = this.adapter.getProgress();
-                if (progress && progress.max > 0) {
-                     // If less than 2s remaining
-                     if (progress.current >= progress.max - 2 && progress.current > 1) {
-                         if (!this.state.isChangingTrack) {
-                             this.state.isChangingTrack = true;
-                             console.log("Track finished. Autoplaying next...");
-                             this.triggerRecommendation();
-                         }
-                     } else {
-                         this.state.isChangingTrack = false;
-                     }
+        // Track playing status and song changes using event-driven approach
+        let monitoringInterval = null;
+        
+        // Setup History API listener for URL/navigation changes
+        this.adapter.onUrlChange((newUrl) => {
+            console.log("[MusicReco] URL changed via SPA navigation:", newUrl);
+            if (this.state.status === 'playing') {
+                // Check if we navigated away from music
+                if (!newUrl.includes('/you/') && !newUrl.includes('/search')) {
+                    console.log("Navigated away from playback context");
                 }
             }
-        }, 1000);
+        });
+
+        // Polling is kept minimal - only tick when playing to update UI timer
+        const startTickingInterval = () => {
+            if (monitoringInterval) return; // Already running
+            
+            monitoringInterval = setInterval(() => {
+                if (!this.adapter.isPlaying()) {
+                    // Stop ticking if not playing
+                    clearInterval(monitoringInterval);
+                    monitoringInterval = null;
+                    return;
+                }
+
+                if (this.state.status === 'playing') {
+                    // Update track signature if changed
+                    const currentSig = this.adapter.getCurrentTrackDetails();
+                    if (this.state.currentTrackSignature && currentSig) {
+                        if (currentSig !== this.state.currentTrackSignature) {
+                            console.log("Track changed manually! Stopping session.");
+                            this.stopSession();
+                            return;
+                        }
+                    } else if (!this.state.currentTrackSignature && currentSig) {
+                        this.state.currentTrackSignature = currentSig;
+                    }
+
+                    // Increment listening time
+                    this.state.listeningTime++;
+                    this.ui.updateTimer(this.state.listeningTime);
+                    
+                    // Backup to storage every 5s
+                    if (this.state.listeningTime % 5 === 0) {
+                        chrome.storage.local.set({ 'listeningTime': this.state.listeningTime });
+                    }
+
+                    // Check for end of track
+                    const progress = this.adapter.getProgress();
+                    if (progress && progress.max > 0) {
+                        // If less than 2s remaining
+                        if (progress.current >= progress.max - 2 && progress.current > 1) {
+                            if (!this.state.isChangingTrack) {
+                                this.state.isChangingTrack = true;
+                                console.log("Track finished. Autoplaying next...");
+                                this.triggerRecommendation();
+                            }
+                        } else {
+                            this.state.isChangingTrack = false;
+                        }
+                    }
+                }
+            }, 1000);
+        };
+
+        // Start ticking when we enter 'playing' state
+        // We'll hook this via state changes
+        const originalChangeState = this.changeState.bind(this);
+        this.changeState = (newState) => {
+            originalChangeState(newState);
+            if (newState === 'playing') {
+                startTickingInterval();
+            } else if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+            }
+        };
     }
 }
 

@@ -1,5 +1,7 @@
 train_triplets.txt
 MillionSongSubset/
 /data/*
+*.zip
+*.db
 .venv/
 .vscode/

@@ -41,7 +41,7 @@ class MusicRecoUI {
 
         this.elements.header = this.shadowRoot.querySelector('#reco-header');
         this.elements.settingsPanel = this.shadowRoot.querySelector('#reco-settings-panel');
-        this.elements.algoSelector = this.shadowRoot.querySelector('#algo-selector');
+        this.elements.algoButtons = this.shadowRoot.querySelectorAll('.algo-btn');
         this.elements.userIdDisplay = this.shadowRoot.querySelector('#user-id-display');
         this.elements.timer = this.shadowRoot.querySelector('#reco-timer');
         this.elements.loaderText = this.shadowRoot.querySelector('#loader-algo-text');
@@ -76,11 +76,11 @@ class MusicRecoUI {
 
                 <div id="reco-settings-panel">
                     <label class="setting-label">Algorithm</label>
-                    <select id="algo-selector">
-                        <option value="matriciel">Collaborative</option>
-                        <option value="content">Content-based</option>
-                        <option value="mix">Hybrid</option>
-                    </select>
+                    <div class="algo-buttons">
+                        <button class="algo-btn active" data-algo="matriciel">Collaborative</button>
+                        <button class="algo-btn" data-algo="content">Content</button>
+                        <button class="algo-btn" data-algo="mix">Hybrid</button>
+                    </div>
                     <div class="user-id-info"><span id="user-id-display">...</span></div>
                 </div>
 
@@ -286,26 +286,37 @@ class MusicRecoUI {
                 margin-bottom: 6px;
             }
 
-            #algo-selector {
+            .algo-buttons {
+                display: flex;
+                gap: 6px;
                 width: 100%;
+            }
+
+            .algo-btn {
+                flex: 1;
                 padding: 8px 10px;
                 background: var(--bg-elevated);
-                color: var(--text-primary);
+                color: var(--text-secondary);
                 border: 1px solid var(--border);
                 border-radius: 6px;
                 outline: none;
-                font-size: 12px;
+                font-size: 11px;
                 cursor: pointer;
                 transition: all 0.2s ease;
+                font-weight: 500;
             }
 
-            #algo-selector:hover {
+            .algo-btn:hover {
                 border-color: var(--primary);
+                color: var(--text-primary);
+                background: var(--bg-secondary);
             }
 
-            #algo-selector:focus {
+            .algo-btn.active {
+                background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
                 border-color: var(--primary);
-                box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.1);
+                color: var(--text-primary);
+                box-shadow: 0 2px 8px rgba(255, 85, 0, 0.3);
             }
 
             .user-id-info {
@@ -534,7 +545,6 @@ class MusicRecoUI {
         const stopBtn = this.shadowRoot.querySelector('#stop-btn');
         const settingsBtn = this.shadowRoot.querySelector('#settings-btn');
         const closeBtn = this.shadowRoot.querySelector('#close-btn');
-        const algoSelector = this.elements.algoSelector;
 
         if (startBtn) startBtn.addEventListener('click', () => {
             if (this.handlers.onStart) this.handlers.onStart();
@@ -555,12 +565,17 @@ class MusicRecoUI {
             if (this.handlers.onClose) this.handlers.onClose();
         });
 
-        if (algoSelector) {
-            algoSelector.addEventListener('change', (e) => {
-                if (this.handlers.onAlgoChange) this.handlers.onAlgoChange(e.target.value);
-                this.toggleSettings(false);
+        // Algorithm button listeners
+        this.elements.algoButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const algo = e.target.dataset.algo;
+                // Update active state
+                this.elements.algoButtons.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                // Trigger handler
+                if (this.handlers.onAlgoChange) this.handlers.onAlgoChange(algo);
             });
-        }
+        });
     }
 
     // --- Actions ---
@@ -599,7 +614,13 @@ class MusicRecoUI {
     }
 
     setAlgo(algo) {
-        if (this.elements.algoSelector) this.elements.algoSelector.value = algo;
+        this.elements.algoButtons.forEach(btn => {
+            if (btn.dataset.algo === algo) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
     }
 
     setEventHandler(event, fn) {

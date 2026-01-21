@@ -55,43 +55,86 @@ class MusicRecoUI {
             <div id="reco-panel">
                 <div id="reco-header">
                     <div class="reco-header-title">
-                        <span>🎵</span> Music Assistant
+                        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13M9 18c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zm12-3c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"/>
+                        </svg>
                     </div>
                     <div class="reco-header-actions">
-                        <button class="reco-icon-btn reco-settings-btn" id="settings-btn">⚙️</button>
-                        <button class="reco-icon-btn reco-close-btn" id="close-btn">×</button>
+                        <button class="reco-icon-btn" id="settings-btn" title="Settings">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 1v3m0 16v3M4.22 4.22l2.12 2.12m11.32 11.32l2.12 2.12M1 12h3m16 0h3M4.22 19.78l2.12-2.12m11.32-11.32l2.12-2.12"/>
+                            </svg>
+                        </button>
+                        <button class="reco-icon-btn" id="close-btn" title="Close">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
                 <div id="reco-settings-panel">
-                    <label class="setting-label">Algorithme de recommandation :</label>
+                    <label class="setting-label">Algorithm</label>
                     <select id="algo-selector">
-                        <option value="matriciel">Matriciel (Collaborative)</option>
-                        <option value="content">Contenu (Audio features)</option>
-                        <option value="mix">Mix / Hybride</option>
+                        <option value="matriciel">Collaborative</option>
+                        <option value="content">Content-based</option>
+                        <option value="mix">Hybrid</option>
                     </select>
-                    <div class="user-id-info">User ID: <span id="user-id-display">...</span></div>
+                    <div class="user-id-info"><span id="user-id-display">...</span></div>
                 </div>
 
                 <div id="reco-content">
                     <div id="initial-view" class="view-section active">
-                        <div class="big-icon">🎧</div>
-                        <h3 class="view-title">Prêt à recommander</h3>
-                        <button class="primary-btn" id="start-btn">▶ Commencer l'écoute</button>
-                    </div>
-
-                    <div id="playing-view" class="view-section">
-                        <h3>En lecture 🎶</h3>
-                        <div id="reco-timer">00:00</div>
-                        <button class="secondary-btn" id="next-btn"><span>⏭</span> Passer (Algo)</button>
-                        <button class="secondary-btn" id="stop-btn" style="margin-top: 10px; background-color: #d63031;">
-                            <span>⏹</span> Stop
+                        <div class="icon-wrapper">
+                            <svg class="main-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 18v-6a9 9 0 0118 0v6"/>
+                                <path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/>
+                            </svg>
+                        </div>
+                        <h3 class="view-title">Music Recommender</h3>
+                        <p class="view-description">Discover new tracks based on your listening preferences using AI-powered recommendations.</p>
+                        <button class="primary-btn" id="start-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            Start Listening
                         </button>
                     </div>
 
+                    <div id="playing-view" class="view-section">
+                        <div class="status-indicator">
+                            <svg class="listening-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                                <path class="wave-bar" d="M12 4v16"/>
+                                <path class="wave-bar" d="M8 7v10"/>
+                                <path class="wave-bar" d="M16 7v10"/>
+                                <path class="wave-bar" d="M4 10v4"/>
+                                <path class="wave-bar" d="M20 10v4"/>
+                            </svg>
+                        </div>
+                        <div id="reco-timer" style="display: none;">00:00</div>
+                        <p class="listening-text">Listening & analyzing...</p>
+                        <div class="action-buttons">
+                            <button class="icon-btn" id="next-btn" title="Next track">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M4 4l12 8-12 8V4zm13 0v16h3V4h-3z"/>
+                                </svg>
+                            </button>
+                            <button class="icon-btn stop-btn" id="stop-btn" title="Stop">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="6" y="6" width="12" height="12" rx="2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
                     <div id="temp-loader" class="view-section">
-                        <div>🎧 Analyse en cours...<br>
-                        <span class="loader-subtext" id="loader-algo-text"></span></div>
+                        <div class="loader-spinner">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <span class="loader-text" id="loader-algo-text">Analyzing...</span>
                     </div>
                 </div>
             </div>
@@ -102,40 +145,54 @@ class MusicRecoUI {
         return `
             * {
                 box-sizing: border-box;
+                margin: 0;
+                padding: 0;
             }
 
             :host {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 14px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                font-size: 13px;
                 --z-index: 2147483647;
+                --primary: #FF5500;
+                --primary-dark: #E04D00;
+                --primary-light: #FF6B1A;
+                --bg-main: #0A0A0A;
+                --bg-secondary: #1A1A1A;
+                --bg-elevated: #242424;
+                --text-primary: #FFFFFF;
+                --text-secondary: #AAAAAA;
+                --text-muted: #666666;
+                --border: #2A2A2A;
+                --accent: #00D9FF;
             }
 
             #reco-panel {
                 position: fixed;
                 top: 80px;
                 right: 20px;
-                width: 320px;
-                height: 500px;
-                background-color: #1a1a1a;
-                border: 1px solid #333;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-                border-radius: 8px;
-                color: #e0e0e0;
+                width: 280px;
+                background: linear-gradient(145deg, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+                border: 2px solid var(--primary);
+                box-shadow: 0 0 30px rgba(255, 85, 0, 0.5), 0 10px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 85, 0, 0.2);
+                border-radius: 16px;
+                color: var(--text-primary);
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
                 z-index: var(--z-index);
+                backdrop-filter: blur(20px);
             }
 
             #reco-header {
                 padding: 12px 16px;
-                background-color: #252525;
-                border-bottom: 1px solid #333;
+                background: linear-gradient(135deg, rgba(255, 85, 0, 0.15) 0%, rgba(255, 85, 0, 0.05) 100%);
+                border-bottom: 2px solid rgba(255, 85, 0, 0.3);
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 cursor: grab;
                 user-select: none;
+                box-shadow: 0 2px 10px rgba(255, 85, 0, 0.2);
             }
 
             #reco-header:active {
@@ -143,85 +200,129 @@ class MusicRecoUI {
             }
 
             .reco-header-title {
-                font-weight: 600;
-                color: #fff;
                 display: flex;
                 align-items: center;
-                gap: 8px;
+            }
+
+            .header-icon {
+                width: 24px;
+                height: 24px;
+                color: var(--primary);
+                filter: drop-shadow(0 0 12px rgba(255, 85, 0, 0.8));
+                animation: iconGlow 3s ease-in-out infinite;
+            }
+
+            @keyframes iconGlow {
+                0%, 100% { filter: drop-shadow(0 0 12px rgba(255, 85, 0, 0.8)); }
+                50% { filter: drop-shadow(0 0 20px rgba(255, 85, 0, 1)); }
             }
 
             .reco-header-actions {
                 display: flex;
-                gap: 10px;
+                gap: 6px;
                 align-items: center;
             }
 
             .reco-icon-btn {
                 background: transparent;
                 border: none;
-                color: #888;
+                color: var(--text-muted);
                 cursor: pointer;
-                line-height: 1;
                 padding: 4px;
-                border-radius: 4px;
+                border-radius: 6px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                transition: background 0.2s, color 0.2s;
-                font-size: 16px;
+                transition: all 0.2s ease;
+                width: 28px;
+                height: 28px;
+            }
+
+            .reco-icon-btn svg {
+                width: 16px;
+                height: 16px;
             }
 
             .reco-icon-btn:hover {
-                background: #333;
-                color: #fff;
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+                transform: scale(1.05);
             }
 
-            .reco-close-btn {
-                font-size: 20px;
+            .reco-icon-btn:active {
+                transform: scale(0.95);
             }
 
             #reco-settings-panel {
                 display: none;
-                background: #222;
-                padding: 15px;
-                border-bottom: 1px solid #333;
+                background: var(--bg-secondary);
+                padding: 12px;
+                border-bottom: 1px solid var(--border);
+                animation: slideDown 0.2s ease;
             }
 
             #reco-settings-panel.visible {
                 display: block;
             }
 
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    max-height: 0;
+                }
+                to {
+                    opacity: 1;
+                    max-height: 200px;
+                }
+            }
+
             .setting-label {
-                color: #ccc;
-                font-size: 12px;
+                color: var(--text-secondary);
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
                 display: block;
-                margin-bottom: 5px;
+                margin-bottom: 6px;
             }
 
             #algo-selector {
                 width: 100%;
-                padding: 8px;
-                background: #333;
-                color: white;
-                border: 1px solid #444;
-                border-radius: 4px;
+                padding: 8px 10px;
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+                border: 1px solid var(--border);
+                border-radius: 6px;
                 outline: none;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            #algo-selector:hover {
+                border-color: var(--primary);
+            }
+
+            #algo-selector:focus {
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.1);
             }
 
             .user-id-info {
-                color: #666;
-                font-size: 10px;
-                margin-top: 5px;
+                color: var(--text-muted);
+                font-size: 9px;
+                margin-top: 8px;
+                text-align: center;
+                font-family: monospace;
             }
 
             #reco-content {
-                padding: 20px;
-                flex: 1;
-                overflow-y: auto;
-                background-color: #1a1a1a;
+                padding: 24px 20px;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+                min-height: 220px;
+                background: transparent;
             }
 
             .view-section {
@@ -231,74 +332,198 @@ class MusicRecoUI {
             }
 
             .view-section.active {
-                display: block;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                animation: fadeIn 0.3s ease;
             }
 
-            #initial-view {
-                margin-top: 50px;
-                color: #888;
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-5px); }
+                to { opacity: 1; transform: translateY(0); }
             }
 
-            .big-icon {
-                font-size: 40px;
-                margin-bottom: 15px;
+            /* Initial View */
+            .icon-wrapper {
+                margin-bottom: 16px;
+            }
+
+            .main-icon {
+                width: 56px;
+                height: 56px;
+                color: var(--primary);
+                filter: drop-shadow(0 4px 16px rgba(255, 85, 0, 0.6));
             }
 
             .view-title {
-                color: #fff;
-                margin: 0 0 8px 0;
-                font-size: 16px;
+                font-size: 18px;
+                font-weight: 700;
+                color: var(--text-primary);
+                margin-bottom: 10px;
+                letter-spacing: -0.5px;
+            }
+
+            .view-description {
+                font-size: 12px;
+                line-height: 1.5;
+                color: var(--text-secondary);
+                margin-bottom: 20px;
+                padding: 0 8px;
+                text-align: center;
             }
 
             .primary-btn {
-                background-color: #f50;
-                color: white;
+                background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+                color: var(--text-primary);
                 border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
+                padding: 12px 24px;
+                border-radius: 8px;
                 cursor: pointer;
-                font-size: 14px;
-                margin-top: 10px;
-                font-weight: bold;
+                font-size: 13px;
+                font-weight: 600;
                 width: 100%;
-            }
-
-            .primary-btn:hover {
-                background-color: #f30;
-            }
-
-            #playing-view h3 {
-                color: #f50;
-                margin-bottom: 10px;
-            }
-
-            #reco-timer {
-                font-size: 24px;
-                color: #fff;
-                font-family: monospace;
-                margin-bottom: 20px;
-                font-weight: bold;
-            }
-
-            .secondary-btn {
-                background-color: transparent;
-                color: #ccc;
-                border: 1px solid #444;
-                padding: 10px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                width: 100%;
-                transition: 0.2s;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 gap: 8px;
+                transition: all 0.2s ease;
+                box-shadow: 0 4px 12px rgba(255, 85, 0, 0.3);
             }
 
-            .secondary-btn:hover {
-                border-color: #666;
-                color: #fff;
+            .primary-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .primary-btn:hover {
+                background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+                box-shadow: 0 6px 20px rgba(255, 85, 0, 0.4);
+                transform: translateY(-1px);
+            }
+
+            .primary-btn:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 8px rgba(255, 85, 0, 0.3);
+            }
+
+            /* Playing View */
+            .status-indicator {
+                margin-bottom: 20px;
+            }
+
+            .listening-icon {
+                width: 64px;
+                height: 64px;
+                color: var(--primary);
+            }
+
+            .listening-icon .wave-bar {
+                animation: waveform 1.2s ease-in-out infinite;
+            }
+
+            .listening-icon .wave-bar:nth-child(1) { animation-delay: 0s; }
+            .listening-icon .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+            .listening-icon .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+            .listening-icon .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+            .listening-icon .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+            @keyframes waveform {
+                0%, 100% {
+                    opacity: 0.3;
+                    transform: scaleY(0.5);
+                }
+                50% {
+                    opacity: 1;
+                    transform: scaleY(1);
+                }
+            }
+
+            .listening-text {
+                font-size: 13px;
+                color: var(--text-secondary);
+                margin-bottom: 24px;
+                font-weight: 500;
+            }
+
+            #reco-timer {
+                display: none;
+            }
+
+            .action-buttons {
+                display: flex;
+                gap: 10px;
+                width: 100%;
+            }
+
+            .icon-btn {
+                background: var(--bg-elevated);
+                border: 1px solid var(--border);
+                color: var(--text-secondary);
+                cursor: pointer;
+                padding: 12px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex: 1;
+                transition: all 0.2s ease;
+            }
+
+            .icon-btn svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            .icon-btn:hover {
+                background: var(--bg-secondary);
+                border-color: var(--primary);
+                color: var(--primary);
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(255, 85, 0, 0.2);
+            }
+
+            .icon-btn:active {
+                transform: translateY(0);
+            }
+
+            .stop-btn {
+                border-color: #FF3B3B;
+            }
+
+            .stop-btn:hover {
+                background: #FF3B3B;
+                border-color: #FF3B3B;
+                color: var(--text-primary);
+                box-shadow: 0 4px 12px rgba(255, 59, 59, 0.3);
+            }
+
+            /* Loader */
+            #temp-loader {
+                justify-content: center;
+                align-items: center;
+                min-height: 200px;
+            }
+
+            .loader-spinner {
+                margin-bottom: 16px;
+            }
+
+            .loader-spinner svg {
+                width: 48px;
+                height: 48px;
+                color: var(--primary);
+                animation: spin 1s linear infinite;
+                filter: drop-shadow(0 0 10px rgba(255, 85, 0, 0.4));
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+
+            .loader-text {
+                font-size: 13px;
+                color: var(--text-secondary);
+                font-weight: 500;
             }
         `;
     }
@@ -458,15 +683,17 @@ class MusicRecoUI {
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: #f50;
+            background: linear-gradient(135deg, #FF5500 0%, #E04D00 100%);
             color: white;
-            padding: 12px 20px;
-            border-radius: 4px;
+            padding: 14px 24px;
+            border-radius: 10px;
             z-index: 2147483647;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 6px 24px rgba(255, 85, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.2);
             animation: slideDown 0.3s ease-out;
+            backdrop-filter: blur(10px);
         `;
         notification.textContent = message;
         

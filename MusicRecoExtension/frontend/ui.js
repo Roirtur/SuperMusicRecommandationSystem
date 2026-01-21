@@ -1,0 +1,779 @@
+class MusicRecoUI {
+    constructor() {
+        this.container = null;
+        this.shadowRoot = null;
+        this.panel = null;
+        this.views = {};
+        this.elements = {};
+        this.handlers = {};
+    }
+
+    init() {
+        this.createSidebar();
+        this.attachDragAndDrop();
+    }
+
+    createSidebar() {
+        // Create host container
+        const host = document.createElement('div');
+        host.id = 'music-reco-host';
+        document.body.appendChild(host);
+
+        // Attach Shadow DOM
+        this.shadowRoot = host.attachShadow({ mode: 'open' });
+
+        // Create styles for Shadow DOM
+        const style = document.createElement('style');
+        style.textContent = this.getShadowStyles();
+        this.shadowRoot.appendChild(style);
+
+        // Create HTML structure inside Shadow DOM
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = this.getShadowHTML();
+        this.shadowRoot.appendChild(wrapper);
+
+        // Store references to key elements
+        this.container = host;
+        this.panel = this.shadowRoot.querySelector('#reco-panel');
+        this.views.initial = this.shadowRoot.querySelector('#initial-view');
+        this.views.playing = this.shadowRoot.querySelector('#playing-view');
+        this.views.loader = this.shadowRoot.querySelector('#temp-loader');
+
+        this.elements.header = this.shadowRoot.querySelector('#reco-header');
+        this.elements.settingsPanel = this.shadowRoot.querySelector('#reco-settings-panel');
+        this.elements.algoButtons = this.shadowRoot.querySelectorAll('.algo-btn');
+        this.elements.userIdDisplay = this.shadowRoot.querySelector('#user-id-display');
+        this.elements.timer = this.shadowRoot.querySelector('#reco-timer');
+        this.elements.loaderText = this.shadowRoot.querySelector('#loader-algo-text');
+
+        // Attach event listeners
+        this.attachEventListeners();
+    }
+
+    getShadowHTML() {
+        return `
+            <div id="reco-panel">
+                <div id="reco-header">
+                    <div class="reco-header-title">
+                        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13M9 18c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zm12-3c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"/>
+                        </svg>
+                    </div>
+                    <div class="reco-header-actions">
+                        <button class="reco-icon-btn" id="settings-btn" title="Settings">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="reco-icon-btn" id="close-btn" title="Close">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="reco-settings-panel">
+                    <label class="setting-label">Algorithm</label>
+                    <div class="algo-buttons">
+                        <button class="algo-btn active" data-algo="matriciel">Collaborative</button>
+                        <button class="algo-btn" data-algo="content">Content</button>
+                        <button class="algo-btn" data-algo="mix">Hybrid</button>
+                    </div>
+                    <div class="user-id-info"><span id="user-id-display">...</span></div>
+                </div>
+
+                <div id="reco-content">
+                    <div id="initial-view" class="view-section active">
+                        <div class="icon-wrapper">
+                            <svg class="main-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 18v-6a9 9 0 0118 0v6"/>
+                                <path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/>
+                            </svg>
+                        </div>
+                        <h3 class="view-title">Music Recommender</h3>
+                        <p class="view-description">Discover new tracks based on your listening preferences using AI-powered recommendations.</p>
+                        <button class="primary-btn" id="start-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            Start Listening
+                        </button>
+                    </div>
+
+                    <div id="playing-view" class="view-section">
+                        <div class="status-indicator">
+                            <svg class="listening-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                                <path class="wave-bar" d="M12 4v16"/>
+                                <path class="wave-bar" d="M8 7v10"/>
+                                <path class="wave-bar" d="M16 7v10"/>
+                                <path class="wave-bar" d="M4 10v4"/>
+                                <path class="wave-bar" d="M20 10v4"/>
+                            </svg>
+                        </div>
+                        <div id="reco-timer" style="display: none;">00:00</div>
+                        <p class="listening-text">Listening & analyzing...</p>
+                        <div class="action-buttons">
+                            <button class="icon-btn" id="next-btn" title="Next track">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M4 4l12 8-12 8V4zm13 0v16h3V4h-3z"/>
+                                </svg>
+                            </button>
+                            <button class="icon-btn stop-btn" id="stop-btn" title="Stop">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="6" y="6" width="12" height="12" rx="2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="temp-loader" class="view-section">
+                        <div class="loader-spinner">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <span class="loader-text" id="loader-algo-text">Analyzing...</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    getShadowStyles() {
+        return `
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            :host {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                font-size: 13px;
+                --z-index: 2147483647;
+                --primary: #FF5500;
+                --primary-dark: #E04D00;
+                --primary-light: #FF6B1A;
+                --bg-main: #0A0A0A;
+                --bg-secondary: #1A1A1A;
+                --bg-elevated: #242424;
+                --text-primary: #FFFFFF;
+                --text-secondary: #AAAAAA;
+                --text-muted: #666666;
+                --border: #2A2A2A;
+                --accent: #00D9FF;
+            }
+
+            #reco-panel {
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                width: 280px;
+                background: linear-gradient(145deg, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+                border: 2px solid var(--primary);
+                box-shadow: 0 0 30px rgba(255, 85, 0, 0.5), 0 10px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 85, 0, 0.2);
+                border-radius: 16px;
+                color: var(--text-primary);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                z-index: var(--z-index);
+                backdrop-filter: blur(20px);
+            }
+
+            #reco-header {
+                padding: 12px 16px;
+                background: linear-gradient(135deg, rgba(255, 85, 0, 0.15) 0%, rgba(255, 85, 0, 0.05) 100%);
+                border-bottom: 2px solid rgba(255, 85, 0, 0.3);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                cursor: grab;
+                user-select: none;
+                box-shadow: 0 2px 10px rgba(255, 85, 0, 0.2);
+            }
+
+            #reco-header:active {
+                cursor: grabbing;
+            }
+
+            .reco-header-title {
+                display: flex;
+                align-items: center;
+            }
+
+            .header-icon {
+                width: 24px;
+                height: 24px;
+                color: var(--primary);
+                filter: drop-shadow(0 0 12px rgba(255, 85, 0, 0.8));
+                animation: iconGlow 3s ease-in-out infinite;
+            }
+
+            @keyframes iconGlow {
+                0%, 100% { filter: drop-shadow(0 0 12px rgba(255, 85, 0, 0.8)); }
+                50% { filter: drop-shadow(0 0 20px rgba(255, 85, 0, 1)); }
+            }
+
+            .reco-header-actions {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+            }
+
+            .reco-icon-btn {
+                background: transparent;
+                border: none;
+                color: var(--text-muted);
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s ease;
+                width: 28px;
+                height: 28px;
+            }
+
+            .reco-icon-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .reco-icon-btn:hover {
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+                transform: scale(1.05);
+            }
+
+            .reco-icon-btn:active {
+                transform: scale(0.95);
+            }
+
+            #reco-settings-panel {
+                display: none;
+                background: var(--bg-secondary);
+                padding: 12px;
+                border-bottom: 1px solid var(--border);
+                animation: slideDown 0.2s ease;
+            }
+
+            #reco-settings-panel.visible {
+                display: block;
+            }
+
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    max-height: 0;
+                }
+                to {
+                    opacity: 1;
+                    max-height: 200px;
+                }
+            }
+
+            .setting-label {
+                color: var(--text-secondary);
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                display: block;
+                margin-bottom: 6px;
+            }
+
+            .algo-buttons {
+                display: flex;
+                gap: 6px;
+                width: 100%;
+            }
+
+            .algo-btn {
+                flex: 1;
+                padding: 8px 10px;
+                background: var(--bg-elevated);
+                color: var(--text-secondary);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                outline: none;
+                font-size: 11px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-weight: 500;
+            }
+
+            .algo-btn:hover {
+                border-color: var(--primary);
+                color: var(--text-primary);
+                background: var(--bg-secondary);
+            }
+
+            .algo-btn.active {
+                background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+                border-color: var(--primary);
+                color: var(--text-primary);
+                box-shadow: 0 2px 8px rgba(255, 85, 0, 0.3);
+            }
+
+            .user-id-info {
+                color: var(--text-muted);
+                font-size: 9px;
+                margin-top: 8px;
+                text-align: center;
+                font-family: monospace;
+            }
+
+            #reco-content {
+                padding: 24px 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 220px;
+                background: transparent;
+            }
+
+            .view-section {
+                width: 100%;
+                text-align: center;
+                display: none;
+            }
+
+            .view-section.active {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                animation: fadeIn 0.3s ease;
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-5px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            /* Initial View */
+            .icon-wrapper {
+                margin-bottom: 16px;
+            }
+
+            .main-icon {
+                width: 56px;
+                height: 56px;
+                color: var(--primary);
+                filter: drop-shadow(0 4px 16px rgba(255, 85, 0, 0.6));
+            }
+
+            .view-title {
+                font-size: 18px;
+                font-weight: 700;
+                color: var(--text-primary);
+                margin-bottom: 10px;
+                letter-spacing: -0.5px;
+            }
+
+            .view-description {
+                font-size: 12px;
+                line-height: 1.5;
+                color: var(--text-secondary);
+                margin-bottom: 20px;
+                padding: 0 8px;
+                text-align: center;
+            }
+
+            .primary-btn {
+                background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+                color: var(--text-primary);
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                transition: all 0.2s ease;
+                box-shadow: 0 4px 12px rgba(255, 85, 0, 0.3);
+            }
+
+            .primary-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .primary-btn:hover {
+                background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+                box-shadow: 0 6px 20px rgba(255, 85, 0, 0.4);
+                transform: translateY(-1px);
+            }
+
+            .primary-btn:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 8px rgba(255, 85, 0, 0.3);
+            }
+
+            /* Playing View */
+            .status-indicator {
+                margin-bottom: 20px;
+            }
+
+            .listening-icon {
+                width: 64px;
+                height: 64px;
+                color: var(--primary);
+            }
+
+            .listening-icon .wave-bar {
+                animation: waveform 1.2s ease-in-out infinite;
+            }
+
+            .listening-icon .wave-bar:nth-child(1) { animation-delay: 0s; }
+            .listening-icon .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+            .listening-icon .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+            .listening-icon .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+            .listening-icon .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+            @keyframes waveform {
+                0%, 100% {
+                    opacity: 0.3;
+                    transform: scaleY(0.5);
+                }
+                50% {
+                    opacity: 1;
+                    transform: scaleY(1);
+                }
+            }
+
+            .listening-text {
+                font-size: 13px;
+                color: var(--text-secondary);
+                margin-bottom: 24px;
+                font-weight: 500;
+            }
+
+            #reco-timer {
+                display: none;
+            }
+
+            .action-buttons {
+                display: flex;
+                gap: 10px;
+                width: 100%;
+            }
+
+            .icon-btn {
+                background: var(--bg-elevated);
+                border: 1px solid var(--border);
+                color: var(--text-secondary);
+                cursor: pointer;
+                padding: 12px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex: 1;
+                transition: all 0.2s ease;
+            }
+
+            .icon-btn svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            .icon-btn:hover {
+                background: var(--bg-secondary);
+                border-color: var(--primary);
+                color: var(--primary);
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(255, 85, 0, 0.2);
+            }
+
+            .icon-btn:active {
+                transform: translateY(0);
+            }
+
+            .stop-btn {
+                border-color: #FF3B3B;
+            }
+
+            .stop-btn:hover {
+                background: #FF3B3B;
+                border-color: #FF3B3B;
+                color: var(--text-primary);
+                box-shadow: 0 4px 12px rgba(255, 59, 59, 0.3);
+            }
+
+            /* Loader */
+            #temp-loader {
+                justify-content: center;
+                align-items: center;
+                min-height: 200px;
+            }
+
+            .loader-spinner {
+                margin-bottom: 16px;
+            }
+
+            .loader-spinner svg {
+                width: 48px;
+                height: 48px;
+                color: var(--primary);
+                animation: spin 1s linear infinite;
+                filter: drop-shadow(0 0 10px rgba(255, 85, 0, 0.4));
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+
+            .loader-text {
+                font-size: 13px;
+                color: var(--text-secondary);
+                font-weight: 500;
+            }
+        `;
+    }
+
+    attachEventListeners() {
+        const startBtn = this.shadowRoot.querySelector('#start-btn');
+        const nextBtn = this.shadowRoot.querySelector('#next-btn');
+        const stopBtn = this.shadowRoot.querySelector('#stop-btn');
+        const settingsBtn = this.shadowRoot.querySelector('#settings-btn');
+        const closeBtn = this.shadowRoot.querySelector('#close-btn');
+
+        if (startBtn) startBtn.addEventListener('click', () => {
+            if (this.handlers.onStart) this.handlers.onStart();
+        });
+
+        if (nextBtn) nextBtn.addEventListener('click', () => {
+            if (this.handlers.onNext) this.handlers.onNext();
+        });
+
+        if (stopBtn) stopBtn.addEventListener('click', () => {
+            if (this.handlers.onStop) this.handlers.onStop();
+        });
+
+        if (settingsBtn) settingsBtn.addEventListener('click', () => this.toggleSettings());
+
+        if (closeBtn) closeBtn.addEventListener('click', () => {
+            this.toggleVisibility(false);
+            if (this.handlers.onClose) this.handlers.onClose();
+        });
+
+        // Algorithm button listeners
+        this.elements.algoButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const algo = e.target.dataset.algo;
+                // Update active state
+                this.elements.algoButtons.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                // Trigger handler
+                if (this.handlers.onAlgoChange) this.handlers.onAlgoChange(algo);
+            });
+        });
+    }
+
+    // --- Actions ---
+
+    toggleVisibility(show) {
+        this.container.style.display = show ? 'block' : 'none';
+    }
+
+    toggleSettings(force) {
+        const p = this.elements.settingsPanel;
+        const show = force !== undefined ? force : !p.classList.contains('visible');
+        if (show) p.classList.add('visible');
+        else p.classList.remove('visible');
+    }
+
+    showView(viewName, data = {}) {
+        Object.values(this.views).forEach(v => v.classList.remove('active'));
+        
+        if (viewName === 'initial') this.views.initial.classList.add('active');
+        if (viewName === 'playing') this.views.playing.classList.add('active');
+        if (viewName === 'loader') {
+            this.views.loader.classList.add('active');
+            if(data.algo) this.elements.loaderText.textContent = `(Algo: ${data.algo})`;
+        }
+    }
+
+    updateTimer(seconds) {
+        if (!this.elements.timer) return;
+        const min = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const sec = (seconds % 60).toString().padStart(2, '0');
+        this.elements.timer.textContent = `${min}:${sec}`;
+    }
+
+    setUserId(id) {
+        if (this.elements.userIdDisplay) this.elements.userIdDisplay.textContent = id;
+    }
+
+    setAlgo(algo) {
+        this.elements.algoButtons.forEach(btn => {
+            if (btn.dataset.algo === algo) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    setEventHandler(event, fn) {
+        this.handlers[event] = fn;
+    }
+
+    // --- Drag & Drop ---
+    attachDragAndDrop() {
+        const header = this.elements.header;
+        const panel = this.panel;
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return; // Ignore buttons
+
+            isDragging = true;
+            header.style.cursor = 'grabbing';
+
+            const rect = panel.getBoundingClientRect();
+            startX = e.clientX;
+            startY = e.clientY;
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
+            // Reset right to auto to allow left positioning
+            panel.style.right = 'auto';
+            panel.style.left = `${initialLeft}px`;
+            panel.style.top = `${initialTop}px`;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            let newTop = initialTop + dy;
+            let newLeft = initialLeft + dx;
+
+            // Boundaries
+            const width = panel.offsetWidth;
+            const height = panel.offsetHeight;
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+
+            if (newTop < 0) newTop = 0;
+            if (newTop + height > winHeight) newTop = winHeight - height;
+            if (newLeft < 0) newLeft = 0;
+            if (newLeft + width > winWidth) newLeft = winWidth - width;
+
+            panel.style.left = `${newLeft}px`;
+            panel.style.top = `${newTop}px`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging && this.handlers.onPositionChange) {
+                this.handlers.onPositionChange({
+                    top: panel.style.top,
+                    left: panel.style.left
+                });
+            }
+            isDragging = false;
+            header.style.cursor = 'grab';
+        });
+    }
+
+    restorePosition(pos) {
+        if (pos && pos.top && pos.left) {
+            this.panel.style.top = pos.top;
+            this.panel.style.left = pos.left;
+            this.panel.style.right = 'auto';
+        }
+    }
+
+    showNotification(message, duration = 3000) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(145deg, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 12px;
+            border: 2px solid #FF5500;
+            z-index: 2147483647;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 0 30px rgba(255, 85, 0, 0.5), 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 85, 0, 0.2);
+            animation: slideDown 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        `;
+        
+        // Add icon SVG
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', '#FF5500');
+        icon.setAttribute('stroke-width', '2');
+        icon.setAttribute('stroke-linecap', 'round');
+        icon.setAttribute('stroke-linejoin', 'round');
+        icon.style.cssText = `
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            filter: drop-shadow(0 0 6px rgba(255, 85, 0, 0.6));
+        `;
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z');
+        icon.appendChild(path);
+        
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message;
+        
+        notification.appendChild(icon);
+        notification.appendChild(textSpan);
+        
+        // Add animation keyframes if not present
+        if (!document.getElementById('reco-notification-style')) {
+            const style = document.createElement('style');
+            style.id = 'reco-notification-style';
+            style.textContent = `
+                @keyframes slideDown {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-50%) translateY(-20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(-50%) translateY(0);
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(notification);
+        
+        // Remove after duration
+        setTimeout(() => {
+            notification.style.animation = 'slideDown 0.3s ease-in reverse';
+            setTimeout(() => notification.remove(), 300);
+        }, duration);
+    }
+}
+
+// Expose
+window.MusicRecoUI = MusicRecoUI;

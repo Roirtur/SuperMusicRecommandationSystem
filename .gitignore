@@ -3,3 +3,5 @@ MillionSongSubset/
 /data/*
 *.zip
 *.db
+.venv/
+.vscode/

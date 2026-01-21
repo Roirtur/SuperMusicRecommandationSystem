@@ -200,14 +200,28 @@ class RecoController {
         });
 
         // Polling is kept minimal - only tick when playing to update UI timer
+        let wasPlayingBefore = false; // Track previous play state
+        
         const startTickingInterval = () => {
             if (monitoringInterval) return; // Already running
             
             monitoringInterval = setInterval(() => {
-                if (!this.adapter.isPlaying()) {
-                    // Stop ticking if not playing
-                    clearInterval(monitoringInterval);
-                    monitoringInterval = null;
+                const isCurrentlyPlaying = this.adapter.isPlaying();
+
+                // Handle pause/unpause
+                if (!isCurrentlyPlaying && wasPlayingBefore) {
+                    // Just paused - keep ticking but don't increment time
+                    wasPlayingBefore = false;
+                    return;
+                }
+                
+                if (isCurrentlyPlaying && !wasPlayingBefore) {
+                    // Just unpaused - resume ticking
+                    wasPlayingBefore = true;
+                }
+
+                if (!isCurrentlyPlaying) {
+                    // Not playing (paused or stopped)
                     return;
                 }
 
@@ -217,6 +231,7 @@ class RecoController {
                     if (this.state.currentTrackSignature && currentSig) {
                         if (currentSig !== this.state.currentTrackSignature) {
                             console.log("Track changed manually! Stopping session.");
+                            this.ui.showNotification("🎵 Music interrupted! Stopping recommendation process.");
                             this.stopSession();
                             return;
                         }
@@ -257,10 +272,12 @@ class RecoController {
         this.changeState = (newState) => {
             originalChangeState(newState);
             if (newState === 'playing') {
+                wasPlayingBefore = true;
                 startTickingInterval();
             } else if (monitoringInterval) {
                 clearInterval(monitoringInterval);
                 monitoringInterval = null;
+                wasPlayingBefore = false;
             }
         };
     }

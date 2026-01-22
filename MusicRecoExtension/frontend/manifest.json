@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SoundCloud Music Recommender",
-  "version": "1.1.0",
+  "version": "1.2",
   "description": "AI-powered music recommendation system for SoundCloud. Discover new tracks based on your listening preferences using collaborative and content-based filtering.",
   "author": "Music Recommendation Team",
   "icons": {

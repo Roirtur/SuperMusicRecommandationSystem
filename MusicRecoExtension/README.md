@@ -1,168 +1,122 @@
-# SoundCloud Music Recommender
+# SoundCloud Music Recommender (v1.2)
 
-An AI-powered Chrome extension that provides intelligent music recommendations while browsing SoundCloud.
+An AI-powered Chrome extension that provides intelligent music recommendations while browsing SoundCloud. It seamlessly integrates a side-panel into the SoundCloud interface, tracking your listening habits to suggest new tracks you'll love.
 
 ## Features
 
-- **Smart Recommendations**: Uses collaborative filtering, content-based, and hybrid algorithms
-- **Seamless Integration**: Elegant sidebar interface that integrates with SoundCloud
-- **Listening Analytics**: Tracks listening patterns and provides personalized suggestions
-- **Auto-play**: Automatically plays recommended tracks
-- **Multiple Algorithms**: Choose between collaborative, content-based, or hybrid recommendation modes
+- **Smart Recommendations**: 
+  - **Collaborative Filtering**: Suggests tracks based on similar user listening patterns.
+  - **Content-Based**: Uses pre-computed audio embeddings to find songs with similar acoustic features.
+  - **Hybrid Mode**: A balanced mix of both discovery methods.
+- **Auto-Play & Navigation**: Automatically navigates to and plays recommended tracks.
+- **Smart Skipping**: Detects and skips "Go+" exclusive tracks (subscription-only) to ensure uninterrupted playback.
+- **Seamless Integration**: Non-intrusive sidebar UI that blends with SoundCloud's design.
+- **Listening Analytics**: Tracks engagement (listening duration) to refine future recommendations.
+- **Cold Start Handling**: Provides popular track suggestions for new users until sufficient history is gathered.
 
 ## Project Structure
 
 ```
 MusicRecoExtension/
 ├── backend/
-│   ├── server.py          # Flask API server
-│   └── requirements.txt   # Python dependencies
+│   ├── server.py             # Flask API server, endpoints, and DB logic
+│   ├── content_recommender_utils.py # Adapter for content-based model
+│   └── requirements.txt      # Python dependencies
 ├── frontend/
-│   ├── manifest.json      # Chrome extension manifest
-│   ├── background.js      # Extension background service worker
-│   ├── main.js           # Main controller logic
-│   ├── api.js            # Backend API communication
-│   ├── adapter.js        # SoundCloud platform adapter
-│   ├── ui.js             # User interface components
-│   ├── sidebar.js        # Popup interface
-│   └── style.css         # Styling
+│   ├── manifest.json         # Chrome Extension V3 manifest
+│   ├── background.js         # Service worker
+│   ├── main.js               # Core controller (State, Navigation, Logic)
+│   ├── api.js                # API client (Mock & Production modes)
+│   ├── adapter.js            # SoundCloud DOM interaction & Event tracking
+│   ├── ui.js                 # UI Component renderer
+│   ├── sidebar.js            # Popup/Sidebar toggle logic
+│   └── style.css             # Extension styling
 └── README.md
 ```
 
 ## Setup Instructions
 
-### Backend Setup
+### 1. Backend Setup
 
-1. **Install Python dependencies:**
+The backend requires a Python environment and access to the project's data files (pickles).
+
+1. **Install Dependencies:**
    ```bash
    cd backend
    pip install -r requirements.txt
    ```
 
-2. **Initialize the database:**
-   The database will be automatically created on first run.
+2. **Prepare Data:**
+   Ensure the following files exist in the `data/` directory (at the project root):
+   - `songs_metadata.pkl`: Song metadata (Artist, Title, ID).
+   - `song_embeddings.pkl`: Audio embeddings for content-based recommendations.
+   - `merged_data.pkl`: User listening history for collaborative filtering.
 
-3. **Start the Flask server:**
+3. **Start the Server:**
    ```bash
    python server.py
    ```
-   The server will run on `http://localhost:5000`
+   The server will start on `http://localhost:5000`.
+   
+   *Note: On first run, the server will automatically create `music_reco.db`.*
 
-### Chrome Extension Setup
+4. **Initialize Data (Optional but Recommended):**
+   To populate the SQLite database with the pickle data, make a POST request to:
+   `http://localhost:5000/sync`
+   
+   *You can do this via Postman or curl:*
+   ```bash
+   curl -X POST http://localhost:5000/sync
+   ```
 
-1. **Open Chrome Extensions page:**
-   - Navigate to `chrome://extensions/`
-   - Enable "Developer mode" (toggle in top-right corner)
+### 2. Frontend Setup (Chrome Extension)
 
-2. **Load the extension:**
-   - Click "Load unpacked"
-   - Select the `frontend` directory
-   - The extension should now appear in your extensions list
+1. **Open Chrome Extensions:**
+   - Go to `chrome://extensions/`
+   - Enable **Developer mode** (top right toggle).
 
-3. **Usage:**
-   - Visit [SoundCloud](https://soundcloud.com)
-   - Click the extension icon to toggle the sidebar
-   - Click "Start Listening" to begin receiving recommendations
-   - Use the settings button to change recommendation algorithms
+2. **Load Extension:**
+   - Click **Load unpacked**.
+   - Select the `frontend` directory inside `MusicRecoExtension`.
+
+3. **Verify:**
+   - The "SoundCloud Music Recommender" icon should appear in your toolbar.
+
+## Usage
+
+1. **Navigate to SoundCloud**: Open [soundcloud.com](https://soundcloud.com).
+2. **Open Sidebar**: Click the extension icon or the toggle button to reveal the recommendation sidebar.
+3. **Start Session**: Click **"Start Listening"**.
+4. **Enjoy**: The extension will analyze your current track and suggest the next one.
+   - It will automatically play the next track when the current one finishes.
+   - If a recommended track is "Go+" (restricted), it will automatically skip to a new suggestion.
 
 ## API Endpoints
 
-### Health Check
-```
-GET /health
-```
-
-### Get Recommendation
-```
-GET /recommend/next?userId={userId}&algoType={algoType}
-```
-- `userId`: Unique user identifier
-- `algoType`: 'matriciel', 'content', or 'mix'
-
-### Send Feedback
-```
-POST /feedback/update
-Content-Type: application/json
-
-{
-  "userId": "user123",
-  "musicId": "Song Title - Artist",
-  "listeningTime": 120
-}
-```
-
-### Get User History
-```
-GET /user/history?userId={userId}
-```
-
-### Sync Data
-```
-POST /sync
-```
-Import data from pickle file into the database.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Server status check. |
+| `GET` | `/recommend/next` | Get next track recommendation. |
+| `POST` | `/feedback/update` | Send listening duration/score for a track. |
+| `GET` | `/user/history` | Retrieve user's listening history. |
+| `POST` | `/sync` | Import data from pickle files into SQLite. |
 
 ## Configuration
 
-### Backend Configuration
-Edit `backend/server.py` to modify:
-- `DEFAULT_SONG_DURATION`: Default track duration (210s)
-- `MAX_SCORE`: Maximum engagement score (10)
-- `COLD_START_THRESHOLD`: Minimum tracks before using collaborative filtering (5)
+- **Frontend**: 
+  - Edit `frontend/api.js` to enable `useMockData = true` for testing without a backend.
+- **Backend**:
+  - Edit `backend/server.py` to change `DEFAULT_SONG_DURATION` (default: 210s) or `COLD_START_THRESHOLD` (default: 5 tracks).
 
-### Frontend Configuration
-Edit `frontend/api.js` to modify:
-- `baseUrl`: Backend server URL
-- `useMockData`: Enable/disable mock mode for testing
+## Development Notes
 
-## Algorithm Types
+- **Version 1.2 (2026-01-22)**:
+  - Added robust detection for SoundCloud "Go+" restrictions.
+  - Improved auto-play reliability with DOM stability checks.
+  - Enhanced error handling for empty search results.
 
-1. **Collaborative Filtering (`matriciel`)**: Recommends music based on similar users' preferences
-2. **Content-Based (`content`)**: Recommends music based on track features and metadata
-3. **Hybrid (`mix`)**: Combines both collaborative and content-based approaches
-
-## Development
-
-### Running in Mock Mode
-To test the extension without a backend:
-```javascript
-// In frontend/api.js
-this.useMockData = true;
-```
-
-### Debugging
-- Open Chrome DevTools on any SoundCloud page
-- Check Console for extension logs (prefixed with `[Controller]`, `[API]`, `[Adapter]`)
-- Backend logs appear in the Flask server terminal
-
-## Database Schema
-
-### `songs` table
-- `music_id` (TEXT, PRIMARY KEY): Track identifier
-- `title` (TEXT): Track title
-- `artist` (TEXT): Artist name
-- `duration` (REAL): Track duration in seconds
-
-### `listening_history` table
-- `user_id` (TEXT): User identifier
-- `music_id` (TEXT): Track identifier
-- `listening_time` (INTEGER): Engagement score (0-10)
-- `algo_type` (TEXT): Algorithm used for recommendation
-- `timestamp` (DATETIME): When the entry was created
-
-## Technologies Used
-
-- **Backend**: Python, Flask, Flask-CORS, SQLite, Pandas
-- **Frontend**: Vanilla JavaScript (ES6+), Chrome Extension APIs
-- **Platform**: SoundCloud Web Player
-
-## Contributing
-
-1. Follow the existing code style and structure
-2. Add JSDoc comments for new functions
-3. Test changes thoroughly on SoundCloud
-4. Update documentation as needed
+- **Mock Mode**: 
+  If the backend is offline, you can enable `this.useMockData = true` in `frontend/api.js` to simulate recommendations using a static list of popular songs.
 
 ## License
-
-This project is for educational purposes.
+Educational Project - Super Music Recommendation System (M2).

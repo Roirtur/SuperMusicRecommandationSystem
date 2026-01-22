@@ -133,20 +133,35 @@ class SoundCloudAdapter {
     }
 
     /**
-     * Find and click the play button of the first search result.
+     * Find and click the play button of the first search result. 
+     * Handles "Go+" restrictions and disabled buttons.
      * 
      * @returns {Promise<boolean>} True if successful, false otherwise
      */
     async playFirstResult() {
-        console.log("[Adapter] Searching for play button...");
+        // Brief wait for DOM stability
+        await new Promise(resolve => setTimeout(resolve, 200));
+
         try {
             const resultSelector = '.searchList__item';
-            await this.waitForElement(resultSelector);
+            await this.waitForElement(resultSelector, 500);
 
-            const playBtnSelector = '.sc-button-play'; 
-            const playBtn = await this.waitForElement(`${resultSelector} ${playBtnSelector}`);
+            const firstItem = document.querySelector(resultSelector);
+            if (!firstItem) throw new Error("No search results found");
+
+            const goPlusIndicator = firstItem.querySelector('.tierIndicator__smallGoPlus');
+            if (goPlusIndicator && !goPlusIndicator.classList.contains('sc-hidden')) {
+                return false;
+            }
+
+            const playBtn = firstItem.querySelector('.sc-button-play');
             
-            console.log("[Adapter] Play button found, clicking.");
+            if (!playBtn) throw new Error("Play button not found");
+
+            if (playBtn.classList.contains('sc-button-disabled') || playBtn.getAttribute('title') === 'Non disponible') {
+                return false;
+            }
+            
             playBtn.click();
             return true;
         } catch (e) {

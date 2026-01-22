@@ -5,6 +5,8 @@ from .model import load as load_model
 
 # Should load full dataset!
 dataset, USER_MAPPING, SONG_MAPPING = load_dataset(20_000_000)
+# Because training was done on 10m triplets
+average_listening_count = dataset["Listening count"][:10_000_000].mean()
 dataset = normalize(dataset)
 
 print("[COLLABORATIVE] Dataset ready")
@@ -13,7 +15,7 @@ SONG_MAPPING_REVERT = {
     song_index: song_id for song_id, song_index in SONG_MAPPING.items()
 }
 
-q, p = load_model("model")
+q, p, b_song, b_user = load_model("model")
 
 print("[COLLABORATIVE] Model loaded")
 
@@ -26,11 +28,21 @@ def get_recommendations(users_listenings: list[tuple[str, int]]) -> list[str]:
     }
 
     # Restrict q to songs listened by the given user
-    q_user_songs = q[
-        [True if idx in user_song_indexes else False for idx in range(len(q))]
+    user_songs_selector = [
+        True if idx in user_song_indexes else False for idx in range(len(q))
     ]
+    q_user_songs = q[user_songs_selector]
+    b_song_user_songs = b_song[user_songs_selector]
 
-    p_user_songs = p @ q_user_songs.T
+    p_user_songs = (
+        # Shape: (#USERS, len(users_listenings))
+        (p @ q_user_songs.T)
+        + average_listening_count
+        # Shape: (#USERs, 1)
+        + b_user[:, np.newaxis]
+        # Shape: (len(users_listenings))
+        + b_song_user_songs
+    )
     user_vector = normalize(
         np.array(
             [
@@ -52,7 +64,12 @@ def get_recommendations(users_listenings: list[tuple[str, int]]) -> list[str]:
     most_similar_user_index = p_user_songs_dist.argsort()[0]
 
     # Compute predictions of this most similar user for all songs
-    most_similar_user_predictions = p[most_similar_user_index] @ q.T
+    most_similar_user_predictions = (
+        (p[most_similar_user_index] @ q.T)
+        + average_listening_count
+        + b_user[most_similar_user_index]
+        + b_song
+    )
 
     # Keep the best 5 songs for this most similar user
     return [

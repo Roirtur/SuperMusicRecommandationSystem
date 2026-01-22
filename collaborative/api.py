@@ -15,7 +15,7 @@ SONG_MAPPING_REVERT = {
     song_index: song_id for song_id, song_index in SONG_MAPPING.items()
 }
 
-q, p, b_song, b_user = load_model("model")
+q, p, b_song, b_user = load_model("model-10000000-40")
 
 print("[COLLABORATIVE] Model loaded")
 

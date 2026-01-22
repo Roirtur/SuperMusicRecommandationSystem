@@ -4,7 +4,9 @@ from .dataset import load as load_dataset, normalize
 from .model import init, save
 from .train import train
 
-dataset, USER_MAPPING, SONG_MAPPING = load_dataset(1_000_000)
+DATASET_SIZE = 10_000_000
+
+dataset, USER_MAPPING, SONG_MAPPING = load_dataset(DATASET_SIZE)
 dataset = normalize(dataset)
 
 print("Dataset ready")
@@ -17,11 +19,13 @@ dataset_shuffled = dataset[dataset_perm]
 train_set = dataset_shuffled[:training_set_size]
 validation_set = dataset_shuffled[training_set_size:]
 
+l = 40
+
 model, stats = train(
-    40,
+    l,
     0.001,
     0.0005,
-    20,
+    300,
     train_set,
     validation_set,
     init(len(SONG_MAPPING), len(USER_MAPPING)),
@@ -29,6 +33,6 @@ model, stats = train(
 
 print("Training done")
 
-save("model", model)
+save(f"model-{DATASET_SIZE}-{l}", model)
 
 print("Model saved")

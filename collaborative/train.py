@@ -24,7 +24,7 @@ def train(
     train_set: np.ndarray,
     validation_set: np.ndarray,
     model: Model,
-) -> LearningStats:
+) -> tuple[Model, LearningStats]:
     q, p = model
 
     learning_stats: LearningStats = {
@@ -103,4 +103,4 @@ def train(
             f"Accuracy (train): {learning_stats['accuracy_train'][epoch]}, Accuracy (validation): {learning_stats['accuracy_validation'][epoch]}"
         )
 
-    return learning_stats
+    return (q, p), learning_stats

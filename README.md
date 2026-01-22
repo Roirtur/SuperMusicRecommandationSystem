@@ -1,40 +1,20 @@
-# AI Project - Numerics: Recommendation System
+# SoundCloud Music Recommendation System
 
-## Project Overview
-[cite_start]The main goal of this project is to design and implement a recommendation system[cite: 1, 3]. 
-[cite_start]This is an open-theme project, meaning the domain (e.g., movies, books, products) is up to the group's preference[cite: 3].
+This project is a music recommendation system designed to enhance the SoundCloud browsing experience. It consists of a Google Chrome Extension that integrates directly into the SoundCloud interface and a backend server that powers the recommendation logic.
 
-## Team Structure
-* [cite_start]**Team Size:** 4-5 students per group[cite: 6].
-* [cite_start]**Representative:** One elected representative per group will handle the final presentation[cite: 21].
+## Project Concept
 
-## Project Requirements
+The main goal is to provide intelligent music suggestions to users as they listen on SoundCloud. The system analyzes user listening habits and song characteristics to recommend new tracks that match their taste.
 
-### Minimal Tasks (Mandatory)
-To meet the core requirements, the system must include the following:
-1.  [cite_start]**Dataset Selection:** * Choose an existing dataset or create a new one[cite: 28].
-    * [cite_start]**Constraint:** Select a dataset that supports both **collaborative filtering** and **content-based filtering** to avoid having to manage two separate datasets[cite: 34, 35].
-2.  [cite_start]**Collaborative Filtering:** Implement **matrix factorization from scratch**[cite: 36].
-3.  [cite_start]**Content-Based Filtering:** Create a system using **deep embeddings** (e.g., CLIP, BERT, or other learned embeddings)[cite: 37].
-4.  [cite_start]**Evaluation:** Define appropriate metrics and build a pipeline to evaluate and compare the models[cite: 38].
+### Key Components
 
-### Improvement Ideas (Bonus/Advanced)
-To extend the project beyond the basics, consider implementing:
-* [cite_start]**Diversity mechanisms** in recommendations[cite: 41].
-* [cite_start]**Explainability** features (why a recommendation was made)[cite: 42].
-* [cite_start]**Hybrid Methods:** Combining collaborative and content-based approaches[cite: 43].
-* [cite_start]**Advanced Architectures:** Such as two-tower models[cite: 44].
-* [cite_start]**Deployment:** A web browser extension to recommend content while browsing[cite: 45].
-* [cite_start]Any other creative implementation[cite: 46].
+*   **Chrome Extension**: A browser extension that acts as the frontend. It adds a sidebar to SoundCloud, tracks the songs you listen to, and plays recommended tracks automatically.
+*   **Recommendation Engine**: A Python-based backend that processes data and generates recommendations using two main approaches:
+    *   **Content-Based Filtering**: Recommends songs similar to what you like based on audio features and metadata (using the Million Song Dataset).
+    *   **Collaborative Filtering**: Suggests new music based on the listening patterns of similar users.
 
-## Data Resources
-Recommended starting points for datasets:
-* [cite_start][Kaggle Recommender Systems](https://www.kaggle.com/datasets?search=recommender+systems) [cite: 30, 31]
-* [cite_start][GitHub: Caserec Datasets](https://github.com/caserec/Datasets-for-Recommender-Systems) [cite: 32, 33]
+### How It Works
 
-## Logistics & Schedule
-[cite_start]**Supervision Hours:** 2 PM – 3 PM daily[cite: 14].
-[cite_start]**Rooms:** * Tuesday - Thursday: A28, Room 205[cite: 9, 10, 11].
-* [cite_start]Friday: A28, Room 207[cite: 12].
-
----
+1.  **Track**: The extension monitors your listening duration and history on SoundCloud.
+2.  **Analyze**: The backend server processes this data against a database of songs and user profiles.
+3.  **Recommend**: The system generates a personalized list of songs and displays them in the extension sidebar, ready to play.

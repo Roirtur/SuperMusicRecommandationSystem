@@ -47,6 +47,13 @@ class RecoController {
         this.ui.setEventHandler('onNext', () => this.triggerRecommendation());
         this.ui.setEventHandler('onStop', () => this.stopSession());
         
+        this.ui.setEventHandler('onCancelLoading', () => {
+             console.log("[Controller] Loading cancelled by user");
+             this.state.status = 'idle';
+             this.ui.showView('initial');
+             this.ui.showNotification("Loading cancelled");
+        });
+
         this.ui.setEventHandler('onClose', () => {
              // Hide sidebar for current session (doesn't persist)
              this.ui.toggleVisibility(false);
@@ -200,6 +207,11 @@ class RecoController {
                 this.state.algoType
             );
             
+            if (this.state.status !== 'loading') {
+                console.log("[Controller] Recommendation ignored - loading cancelled");
+                return;
+            }
+
             console.log("[Controller] Recommended:", recommendation.song_title, "via", recommendation.algorithm);
             
             const recommendedTrack = recommendation.song_title;

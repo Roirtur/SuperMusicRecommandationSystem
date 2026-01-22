@@ -135,6 +135,9 @@ class MusicRecoUI {
                             </svg>
                         </div>
                         <span class="loader-text" id="loader-algo-text">Analyzing...</span>
+                        <button id="cancel-loading-btn" style="margin-top: 15px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s ease;">
+                            Stop Loading
+                        </button>
                     </div>
                 </div>
             </div>
@@ -543,6 +546,7 @@ class MusicRecoUI {
         const startBtn = this.shadowRoot.querySelector('#start-btn');
         const nextBtn = this.shadowRoot.querySelector('#next-btn');
         const stopBtn = this.shadowRoot.querySelector('#stop-btn');
+        const cancelLoadingBtn = this.shadowRoot.querySelector('#cancel-loading-btn');
         const settingsBtn = this.shadowRoot.querySelector('#settings-btn');
         const closeBtn = this.shadowRoot.querySelector('#close-btn');
 
@@ -556,6 +560,10 @@ class MusicRecoUI {
 
         if (stopBtn) stopBtn.addEventListener('click', () => {
             if (this.handlers.onStop) this.handlers.onStop();
+        });
+
+        if (cancelLoadingBtn) cancelLoadingBtn.addEventListener('click', () => {
+            if (this.handlers.onCancelLoading) this.handlers.onCancelLoading();
         });
 
         if (settingsBtn) settingsBtn.addEventListener('click', () => this.toggleSettings());

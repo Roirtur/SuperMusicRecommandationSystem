@@ -1,13 +1,24 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import sqlite3
 import pandas as pd
 import os
-import sqlite3
 import random
 import math
 
+# Import content-based recommender utilities
+try:
+    from content_recommender_utils import load_content_recommender, get_content_based_recommendation
+    CONTENT_RECOMMENDER_AVAILABLE = True
+except ImportError as e:
+    print(f"[WARNING] Could not import content_recommender_utils: {e}")
+    CONTENT_RECOMMENDER_AVAILABLE = False
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Global variable to hold the preloaded content-based recommender
+content_recommender = None
 
 # =============================================================================
 # CONFIGURATION
@@ -68,10 +79,13 @@ def init_db():
     # Songs metadata table (stores duration and track information)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS songs (
-            music_id TEXT PRIMARY KEY,
+            song_id TEXT PRIMARY KEY,
             title TEXT,
             artist TEXT,
-            duration REAL
+            duration REAL,
+            release TEXT,
+            year INTEGER,
+            tempo REAL
         )
     ''')
 
@@ -79,16 +93,38 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS listening_history (
             user_id TEXT NOT NULL,
-            music_id TEXT NOT NULL,
+            song_id TEXT NOT NULL,
             listening_time INTEGER,
             algo_type TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (user_id, music_id)
+            PRIMARY KEY (user_id, song_id)
         )
     ''')
     conn.commit()
     conn.close()
     print(f"Database '{DB_NAME}' initialized successfully.")
+
+
+def init_content_recommender():
+    """
+    Initialize the content-based recommender system.
+    Loads embeddings and metadata on server startup.
+    """
+    global content_recommender
+    
+    if not CONTENT_RECOMMENDER_AVAILABLE:
+        print("[CONTENT-BASED] Skipping initialization - module not available")
+        return
+    
+    try:
+        content_recommender = load_content_recommender()
+        print("[CONTENT-BASED] ✓ Recommender initialized successfully")
+    except FileNotFoundError as e:
+        print(f"[CONTENT-BASED] ⚠ Could not load recommender: {e}")
+        content_recommender = None
+    except Exception as e:
+        print(f"[CONTENT-BASED] ⚠ Error initializing recommender: {e}")
+        content_recommender = None
 
 
 # =============================================================================
@@ -142,6 +178,7 @@ def recommend_next_track():
 
     suggestion = "Default Track"
     algo_used = algo_type
+    track_details = {}
 
     try:
         conn = sqlite3.connect(DB_NAME)
@@ -155,17 +192,31 @@ def recommend_next_track():
         if history_count < COLD_START_THRESHOLD:
             algo_used = "cold_start_top50"
             
-            # Get top 50 most popular tracks (by total listening time)
+            # Get top 50 most popular tracks with metadata
             cursor.execute('''
-                SELECT music_id FROM listening_history
-                GROUP BY music_id
-                ORDER BY SUM(listening_time) DESC
+                SELECT s.song_id, s.title, s.artist, s.duration, s.release, s.year, s.tempo 
+                FROM listening_history lh
+                LEFT JOIN songs s ON lh.song_id = s.song_id
+                GROUP BY lh.song_id
+                ORDER BY SUM(lh.listening_time) DESC
                 LIMIT 50
             ''')
-            top_tracks = [row[0] for row in cursor.fetchall()]
             
-            if top_tracks:
-                suggestion = random.choice(top_tracks)
+            rows = cursor.fetchall()
+            valid_rows = [row for row in rows if row[1] and row[2]]  # Ensure title and artist exist
+            
+            if valid_rows:
+                selected = random.choice(valid_rows)
+                suggestion = f"{selected[1]} - {selected[2]}"
+                track_details = {
+                    "song_id": selected[0],
+                    "title": selected[1],
+                    "artist": selected[2],
+                    "duration": selected[3],
+                    "release": selected[4],
+                    "year": selected[5],
+                    "tempo": selected[6]
+                }
             else:
                 # No tracks in database at all - use fallback
                 suggestion = "Bohemian Rhapsody - Queen"
@@ -174,7 +225,31 @@ def recommend_next_track():
             # User has sufficient history - use algorithm-specific logic
             # TODO: Replace with actual ML models
             if algo_type == 'content':
-                suggestion = "Stairway to Heaven - Led Zeppelin"
+                # Content-based recommendation using embeddings
+                if content_recommender is not None:
+                    try:
+                        recommended_track = get_content_based_recommendation(
+                            content_recommender, 
+                            user_id, 
+                            conn
+                        )
+                        
+                        if recommended_track:
+                            suggestion = recommended_track
+                        else:
+                            # Fallback if no recommendation could be generated
+                            suggestion = "Stairway to Heaven - Led Zeppelin"
+                            algo_used = "content_fallback"
+                            print("[CONTENT-BASED] Using fallback track")
+                    except Exception as e:
+                        print(f"[CONTENT-BASED] Error generating recommendation: {e}")
+                        suggestion = "Stairway to Heaven - Led Zeppelin"
+                        algo_used = "content_error"
+                else:
+                    # Content recommender not available
+                    suggestion = "Stairway to Heaven - Led Zeppelin"
+                    algo_used = "content_unavailable"
+                    print("[CONTENT-BASED] Recommender not initialized")
             elif algo_type == 'matriciel':
                 suggestion = "Bohemian Rhapsody - Queen"
             elif algo_type == 'mix':
@@ -189,11 +264,14 @@ def recommend_next_track():
         suggestion = "Bohemian Rhapsody - Queen"  # Fallback track
         algo_used = "error_fallback"
 
-    return jsonify({
+    response_data = {
         "song_title": suggestion,
         "algorithm": algo_used,
-        "status": "success"
-    })
+        "status": "success",
+        **track_details
+    }
+
+    return jsonify(response_data)
 
 @app.route('/user/history', methods=['GET'])
 def get_user_history():
@@ -228,7 +306,7 @@ def get_user_history():
         # Retrieve listening history with scores
         cursor.execute('''
             SELECT 
-                lh.music_id,
+                lh.song_id,
                 lh.listening_time as score,
                 lh.algo_type,
                 lh.timestamp,
@@ -236,7 +314,7 @@ def get_user_history():
                 s.artist,
                 s.duration
             FROM listening_history lh
-            LEFT JOIN songs s ON lh.music_id = s.music_id
+            LEFT JOIN songs s ON lh.song_id = s.song_id
             WHERE lh.user_id = ?
             ORDER BY lh.timestamp DESC
         ''', (user_id,))
@@ -247,7 +325,7 @@ def get_user_history():
         history = []
         for row in rows:
             history.append({
-                "music_id": row[0],
+                "song_id": row[0],
                 "score": row[1],
                 "algo_type": row[2],
                 "timestamp": row[3],
@@ -258,7 +336,7 @@ def get_user_history():
         
         # Calculate statistics
         total_score = sum(item['score'] for item in history)
-        unique_songs = len(set(item['music_id'] for item in history))
+        unique_songs = len(set(item['song_id'] for item in history))
         
         conn.close()
         
@@ -285,7 +363,7 @@ def update_user_feedback():
     
     Request Body (JSON) or Query Parameters:
         userId (str): User identifier
-        musicId (str): Track identifier (or songTitle)
+        musicId (str): Track identifier (PREFERRED: songId)
         listeningTime (float): Seconds listened
     
     Returns:
@@ -294,47 +372,83 @@ def update_user_feedback():
             "message": str,
             "score_computed": int
         }
-    
-    Example:
-        POST /feedback/update
-        {"userId": "user123", "musicId": "Song - Artist", "listeningTime": 120}
     """
     data = request.json if request.is_json else {}
     
     user_id = data.get('userId') or request.args.get('userId')
-    music_id = data.get('musicId') or request.args.get('musicId') or data.get('songTitle') or request.args.get('songTitle')
+    
+    # Prioritize 'songId' if provided, then 'musicId' (which might be ID or title)
+    # We strictly want song_id format (e.g. SOxxxxx)
+    raw_id_input = data.get('songId') or request.args.get('songId') or data.get('musicId') or request.args.get('musicId')
+    
+    # Additional fallback: if client sends 'songTitle' separately
+    song_title_input = data.get('songTitle') or request.args.get('songTitle')
+    
     time_listened = float(data.get('listeningTime') or request.args.get('listeningTime') or 0)
     
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        
+        final_song_id = None
+        
+        # 1. Check if raw_id_input is a valid song_id in our DB
+        if raw_id_input:
+             cursor.execute("SELECT song_id FROM songs WHERE song_id = ?", (raw_id_input,))
+             if cursor.fetchone():
+                 final_song_id = raw_id_input
+        
+        # 2. If valid ID not found, check if raw_id_input or song_title_input match a title/artist combination
+        if not final_song_id:
+             # Try to match by title
+             search_term = song_title_input if song_title_input else raw_id_input
+             if search_term:
+                 print(f"[FEEDBACK] '{search_term}' is not a known song_id. Searching by title...")
+                 # Try exact title match first
+                 cursor.execute("SELECT song_id FROM songs WHERE title = ? OR title || ' - ' || artist = ?", (search_term, search_term))
+                 row = cursor.fetchone()
+                 if row:
+                     final_song_id = row[0]
+                     print(f"[FEEDBACK] Resolved '{search_term}' to song_id: {final_song_id}")
+                 else:
+                     # Very loose search (risky but helps find something)
+                     cursor.execute("SELECT song_id FROM songs WHERE ? LIKE '%' || title || '%'", (search_term,))
+                     row = cursor.fetchone()
+                     if row:
+                        final_song_id = row[0]
+                        print(f"[FEEDBACK] Fuzzy resolved '{search_term}' to song_id: {final_song_id}")
+        
+        if not final_song_id:
+             print(f"[FEEDBACK] ERROR: Could not resolve '{raw_id_input or song_title_input}' to a valid song_id. Feedback ignored.")
+             conn.close()
+             return jsonify({
+                 "status": "error",
+                 "message": "Could not verify song_id. Only valid song_ids are stored."
+             }), 400
 
-        # Retrieve track duration from database
-        cursor.execute("SELECT duration FROM songs WHERE music_id = ?", (music_id,))
+        # Retrieve track duration for score logic using the FINAL song_id
+        cursor.execute("SELECT duration FROM songs WHERE song_id = ?", (final_song_id,))
         row = cursor.fetchone()
         
         if row and row[0]:
             total_duration = row[0]
-            print(f"[FEEDBACK] Duration found in DB for '{music_id}': {total_duration}s")
         else:
             total_duration = DEFAULT_SONG_DURATION
-            print(f"[FEEDBACK] Duration not found for '{music_id}'. Using default: {DEFAULT_SONG_DURATION}s")
 
-        print(f"[FEEDBACK] User {user_id} listened to '{music_id}' for {time_listened}s (out of {total_duration}s)")
+        print(f"[FEEDBACK] User {user_id} listened to '{final_song_id}' (Duration: {total_duration}s) for {time_listened}s")
 
         # Calculate engagement score
         interest_score = compute_score(time_listened, total_duration)
-        print(f"   -> Computed score: {interest_score} / {MAX_SCORE}")
 
         # Insert or update listening history (cumulative score)
         cursor.execute('''
-            INSERT INTO listening_history (user_id, music_id, listening_time) 
+            INSERT INTO listening_history (user_id, song_id, listening_time) 
             VALUES (?, ?, ?)
-            ON CONFLICT(user_id, music_id) 
+            ON CONFLICT(user_id, song_id) 
             DO UPDATE SET 
                 listening_time = listening_history.listening_time + excluded.listening_time,
                 timestamp = CURRENT_TIMESTAMP
-        ''', (user_id, music_id, interest_score))
+        ''', (user_id, final_song_id, interest_score))
         
         conn.commit()
         conn.close()
@@ -342,7 +456,8 @@ def update_user_feedback():
         return jsonify({
             "status": "success", 
             "message": "Feedback recorded successfully",
-            "score_computed": interest_score
+            "score_computed": interest_score,
+            "resolved_song_id": final_song_id
         })
         
     except Exception as e:
@@ -352,88 +467,119 @@ def update_user_feedback():
 @app.route('/sync', methods=['POST', 'GET'])
 def sync_data():
     """
-    Import data from merged_data.pkl file into SQLite database.
-    
-    Searches for the file at: ../../data/merged_data.pkl (relative to server.py)
-    Falls back to mixed_data.pkl if merged_data.pkl not found.
-    
-    Returns:
-        JSON: {
-            "status": "success",
-            "message": str,
-            "sample_music_id": str
-        }
-    
-    Note: This endpoint is typically called once during initial setup.
+    Import data into SQLite database from pickle files.
+    Two separate steps:
+    1. Import full song catalog from songs_metadata.pkl
+    2. Import user listening history from merged_data.pkl
     """
     try:
-        # Locate pickle file
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        # Navigate: backend -> MusicRecoExtension -> SuperMusicRecommandationSystem -> data
-        pkl_path = os.path.join(base_dir, '..', '..', 'data', 'merged_data.pkl')
-        
-        # Fallback to alternative filename
-        if not os.path.exists(pkl_path):
-            pkl_path = os.path.join(base_dir, '..', '..', 'data', 'mixed_data.pkl')
-
-        print(f"[SYNC] Searching for file: {pkl_path}")
-        if not os.path.exists(pkl_path):
-            return jsonify({"error": f"File not found. Expected at: {pkl_path}"}), 404
-
-        # Load DataFrame
-        print("[SYNC] Loading DataFrame (this may take a moment)...")
-        df = pd.read_pickle(pkl_path)
-        print(f"[SYNC] DataFrame loaded. {len(df)} rows.")
-        
-        # Validate required columns
-        required_cols = ['user_id', 'title', 'artist_name', 'play_count', 'duration']
-        missing_cols = [c for c in required_cols if c not in df.columns]
-        if missing_cols:
-             return jsonify({"error": f"Missing columns in pickle file: {missing_cols}"}), 400
-
-        # Transform data for database
-        print("[SYNC] Transforming data...")
-        df['db_music_id'] = df['title'] + ' - ' + df['artist_name']
-        df['db_listening_time'] = df['play_count'].fillna(0).astype(int)
-        df['db_algo_type'] = 'import_msd'
-
-        # Insert song metadata
-        print("[SYNC] Inserting song metadata...")
-        songs_df = df[['db_music_id', 'title', 'artist_name', 'duration']].drop_duplicates(subset=['db_music_id'])
-        songs_data = songs_df.to_records(index=False).tolist()
+        data_dir = os.path.join(base_dir, '..', '..', 'data')
         
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
-        cursor.executemany('''
-            INSERT OR IGNORE INTO songs (music_id, title, artist, duration)
-            VALUES (?, ?, ?, ?)
-        ''', songs_data)
-        
-        # Insert listening history
-        print("[SYNC] Inserting user listening history...")
-        insert_data = df[['user_id', 'db_music_id', 'db_listening_time', 'db_algo_type']].to_records(index=False)
-        data_list = list(insert_data)
+        results = {
+            "status": "success",
+            "songs_loaded": 0,
+            "history_loaded": 0,
+            "messages": []
+        }
 
-        # Upsert: cumulative listening time on conflict
-        cursor.executemany('''
-            INSERT INTO listening_history (user_id, music_id, listening_time, algo_type) 
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(user_id, music_id) 
-            DO UPDATE SET 
-                listening_time = listening_history.listening_time + excluded.listening_time,
-                algo_type = 'import_msd_update'
-        ''', data_list)
+        # --- STEP 1: LOAD SONGS METADATA ---
+        metadata_path = os.path.join(data_dir, 'songs_metadata.pkl')
+        if os.path.exists(metadata_path):
+            print(f"[SYNC] Loading Songs Metadata from {metadata_path}...")
+            meta_df = pd.read_pickle(metadata_path)
+            print(f"[SYNC] Found {len(meta_df)} songs in metadata.")
+            
+            # Ensure required columns exist
+            if 'song_id' in meta_df.columns:
+                # Fill missing optional columns with defaults
+                if 'duration' not in meta_df.columns: meta_df['duration'] = DEFAULT_SONG_DURATION
+                if 'release' not in meta_df.columns: meta_df['release'] = None
+                if 'year' not in meta_df.columns: meta_df['year'] = 0
+                if 'tempo' not in meta_df.columns: meta_df['tempo'] = 0.0
+                if 'title' not in meta_df.columns: meta_df['title'] = "Unknown Title"
+                if 'artist_name' not in meta_df.columns: meta_df['artist_name'] = "Unknown Artist"
+
+                # Clean numeric types
+                meta_df['year'] = pd.to_numeric(meta_df['year'], errors='coerce').fillna(0).astype(int)
+                meta_df['tempo'] = pd.to_numeric(meta_df['tempo'], errors='coerce').fillna(0.0)
+                meta_df['duration'] = pd.to_numeric(meta_df['duration'], errors='coerce').fillna(DEFAULT_SONG_DURATION)
+                
+                # Prepare for insertion
+                # Columns: song_id, title, artist, duration, release, year, tempo
+                # Note: pickle has 'artist_name', db has 'artist'
+                song_records = meta_df[['song_id', 'title', 'artist_name', 'duration', 'release', 'year', 'tempo']].to_records(index=False).tolist()
+                
+                cursor.executemany('''
+                    INSERT OR REPLACE INTO songs (song_id, title, artist, duration, release, year, tempo)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', song_records)
+                
+                results["songs_loaded"] = len(song_records)
+                results["messages"].append(f"Imported {len(song_records)} from songs_metadata.pkl")
+            else:
+                 results["messages"].append("songs_metadata.pkl missing 'song_id' column")
+        else:
+            results["messages"].append("songs_metadata.pkl not found")
+
+        # --- STEP 2: LOAD LISTENING HISTORY ---
+        history_path = os.path.join(data_dir, 'merged_data.pkl')
+        # Fallback
+        if not os.path.exists(history_path):
+            history_path = os.path.join(data_dir, 'mixed_data.pkl')
+
+        if os.path.exists(history_path):
+            print(f"[SYNC] Loading User History from {history_path}...")
+            hist_df = pd.read_pickle(history_path)
+            print(f"[SYNC] Found {len(hist_df)} history records.")
+            
+            required_hist_cols = ['user_id', 'song_id', 'play_count']
+            if all(c in hist_df.columns for c in required_hist_cols):
+                # If we have no songs loaded yet (meta file missing), we must extract basic song info from history to satisfy eventual consistency
+                if results["songs_loaded"] == 0:
+                     print("[SYNC] Extracting basic song info from history (metadata missing)...")
+                     unique_songs = hist_df[['song_id', 'title', 'artist_name']].drop_duplicates(subset=['song_id']).copy()
+                     unique_songs['duration'] = DEFAULT_SONG_DURATION
+                     unique_songs['release'] = None
+                     unique_songs['year'] = 0
+                     unique_songs['tempo'] = 0
+                     
+                     fallback_songs = unique_songs.to_records(index=False).tolist()
+                     cursor.executemany('''
+                        INSERT OR IGNORE INTO songs (song_id, title, artist, duration, release, year, tempo)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', fallback_songs)
+                     results["messages"].append(f"Extracted {len(fallback_songs)} songs from history file")
+
+                # Prepare history data
+                hist_df['listening_time'] = hist_df['play_count'].fillna(0).astype(int)
+                hist_df['algo_type'] = 'import_msd'
+                
+                history_records = hist_df[['user_id', 'song_id', 'listening_time', 'algo_type']].to_records(index=False).tolist()
+                
+                cursor.executemany('''
+                    INSERT INTO listening_history (user_id, song_id, listening_time, algo_type) 
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id, song_id) 
+                    DO UPDATE SET 
+                        listening_time = listening_history.listening_time + excluded.listening_time
+                ''', history_records)
+                
+                results["history_loaded"] = len(history_records)
+                results["messages"].append(f"Imported {len(history_records)} from {os.path.basename(history_path)}")
+            else:
+                 results["messages"].append("History file missing required columns")
+        else:
+            results["messages"].append("History pickle file not found")
 
         conn.commit()
         conn.close()
         
-        print("[SYNC] Import completed successfully.")
-        return jsonify({
-            "status": "success",
-            "message": f"Imported {len(data_list)} rows from {os.path.basename(pkl_path)}",
-            "sample_music_id": data_list[0][1] if data_list else "None"
-        })
+        print(f"[SYNC] Complete. {results}")
+        return jsonify(results)
 
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
@@ -448,6 +594,7 @@ def sync_data():
 
 if __name__ == '__main__':
     init_db()
+    init_content_recommender()
     print("\n" + "="*60)
     print(" SoundCloud Music Recommender API")
     print(" Server starting on http://localhost:5000")

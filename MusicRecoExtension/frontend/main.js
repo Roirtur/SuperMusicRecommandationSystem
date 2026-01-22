@@ -215,14 +215,16 @@ class RecoController {
             console.log("[Controller] Recommended:", recommendation.song_title, "via", recommendation.algorithm);
             
             const recommendedTrack = recommendation.song_title;
+            // Prefer song_id if available, otherwise use title only as fallback (backend will try to resolve it)
+            const recommendedId = recommendation.song_id || recommendation.song_title;
             
             // Store flags for autoplay after navigation
             chrome.storage.local.set({ 
                 'music_reco_autoplay': true, 
                 'music_reco_state': 'playing',
-                'currentTrackId': recommendedTrack
+                'currentTrackId': recommendedId // Now holding the best identifier we have
             }, () => {
-                // Navigate to search results
+                // Navigate to search results using TITLE
                 this.adapter.search(recommendedTrack);
                 
                 // Handle SPA navigation (page doesn't reload)

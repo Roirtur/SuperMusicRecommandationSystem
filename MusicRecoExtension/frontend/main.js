@@ -8,21 +8,19 @@
  */
 class RecoController {
     constructor() {
-        // Initialize components
         this.ui = new window.MusicRecoUI();
         this.adapter = new window.SoundCloudAdapter();
         this.api = new window.MusicRecoAPI();
         
-        // Application state
         this.state = {
             userId: null,
-            algoType: 'matriciel',  // Default algorithm
-            listeningTime: 0,        // Time spent listening to current track (seconds)
-            status: 'idle',          // Current status: 'idle', 'playing', 'loading'
-            isChangingTrack: false,  // Flag to prevent duplicate track changes
-            monitoredUrl: null,      // URL being monitored
-            currentTrackSignature: null,  // Signature of current track (for change detection)
-            currentTrackId: null     // Track ID for feedback
+            algoType: 'matriciel',
+            listeningTime: 0,
+            status: 'idle',
+            isChangingTrack: false,
+            monitoredUrl: null,
+            currentTrackSignature: null,
+            currentTrackId: null
         };
 
         this.init();
@@ -248,7 +246,6 @@ class RecoController {
      * Handle autoplay logic after navigation to search results.
      */
     async handleAutoplay() {
-        console.log("[Controller] Autoplay active, attempting to play...");
         this.changeState('loading');
         
         const success = await this.adapter.playFirstResult();
@@ -257,25 +254,20 @@ class RecoController {
             this.changeState('playing');
             chrome.storage.local.set({ 'music_reco_autoplay': false });
             
-            // Wait for the player to update with new song details
+            // Wait for player update
             setTimeout(() => {
                 this.state.currentTrackSignature = this.adapter.getCurrentTrackDetails();
-                console.log("[Controller] Tracking started for:", this.state.currentTrackSignature);
                 
-                // Restore currentTrackId from storage for feedback
                 chrome.storage.local.get(['currentTrackId'], (res) => {
                     if (res.currentTrackId) {
                         this.state.currentTrackId = res.currentTrackId;
-                        console.log("[Controller] Current track ID set:", this.state.currentTrackId);
                     }
                 });
             }, 2000);
             
         } else {
-            console.log("[Controller] Autoplay failed (restricted/missing content). Skipping to next recommendation...");
             this.ui.showNotification("Content unavailable, skipping...");
             
-            // Retry with a new recommendation
             setTimeout(() => {
                 this.triggerRecommendation();
             }, 1000);

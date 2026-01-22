@@ -141,13 +141,13 @@ class SoundCloudAdapter {
     async playFirstResult() {
         console.log("[Adapter] Searching for play button...");
         
-        // Wait at least 2s to ensure the page has had time to load content/scripts
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait briefly to ensure DOM stability
+        await new Promise(resolve => setTimeout(resolve, 200));
 
         try {
             const resultSelector = '.searchList__item';
-            // Wait for results to verify if any exist (timeout 5s)
-            await this.waitForElement(resultSelector, 5000);
+            // Wait for results to verify if any exist
+            await this.waitForElement(resultSelector, 500);
 
             const firstItem = document.querySelector(resultSelector);
             if (!firstItem) throw new Error("No search results found");

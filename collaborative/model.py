@@ -19,13 +19,13 @@ def init(n_songs: int, n_users: int) -> Model:
     return q, p
 
 
-def export(prefix: str, model: Model):
+def save(prefix: str, model: Model):
     q, p = model
     np.save(prefix + "_q.npy", q)
     np.save(prefix + "_p.npy", p)
 
 
-def import_(prefix: str) -> Model:
+def load(prefix: str) -> Model:
     q = np.load(prefix + "_q.npy")
     p = np.load(prefix + "_p.npy")
 

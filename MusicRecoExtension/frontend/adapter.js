@@ -134,19 +134,45 @@ class SoundCloudAdapter {
 
     /**
      * Find and click the play button of the first search result.
+     * Checks for "Go+" restrictions and disabled play buttons.
      * 
      * @returns {Promise<boolean>} True if successful, false otherwise
      */
     async playFirstResult() {
         console.log("[Adapter] Searching for play button...");
+        
+        // Wait at least 2s to ensure the page has had time to load content/scripts
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
         try {
             const resultSelector = '.searchList__item';
-            await this.waitForElement(resultSelector);
+            // Wait for results to verify if any exist (timeout 5s)
+            await this.waitForElement(resultSelector, 5000);
 
-            const playBtnSelector = '.sc-button-play'; 
-            const playBtn = await this.waitForElement(`${resultSelector} ${playBtnSelector}`);
+            const firstItem = document.querySelector(resultSelector);
+            if (!firstItem) throw new Error("No search results found");
+
+            // Check for Go+ restriction
+            // Note: The element might exist but be hidden on free tracks
+            const goPlusIndicator = firstItem.querySelector('.tierIndicator__smallGoPlus');
+            if (goPlusIndicator && !goPlusIndicator.classList.contains('sc-hidden')) {
+                console.log("[Adapter] Skipped: Song requires Go+ subscription");
+                return false;
+            }
+
+            // Check for play button
+            const playBtnSelector = '.sc-button-play';
+            const playBtn = firstItem.querySelector(playBtnSelector);
             
-            console.log("[Adapter] Play button found, clicking.");
+            if (!playBtn) throw new Error("Play button not found");
+
+            // Check if play button is disabled
+            if (playBtn.classList.contains('sc-button-disabled') || playBtn.getAttribute('title') === 'Non disponible') {
+                console.log("[Adapter] Skipped: Play button is disabled/unavailable");
+                return false;
+            }
+            
+            console.log("[Adapter] Play button found and valid, clicking.");
             playBtn.click();
             return true;
         } catch (e) {

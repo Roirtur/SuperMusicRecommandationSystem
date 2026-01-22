@@ -272,9 +272,13 @@ class RecoController {
             }, 2000);
             
         } else {
-            console.log("[Controller] Autoplay failed.");
-            this.changeState('idle');
-            chrome.storage.local.set({ 'music_reco_autoplay': false });
+            console.log("[Controller] Autoplay failed (restricted/missing content). Skipping to next recommendation...");
+            this.ui.showNotification("Content unavailable, skipping...");
+            
+            // Retry with a new recommendation
+            setTimeout(() => {
+                this.triggerRecommendation();
+            }, 1000);
         }
     }
 

@@ -3,6 +3,9 @@ import numpy as np
 
 
 def load(max_size: int) -> tuple[np.ndarray, dict[str, int], dict[str, int]]:
+    """
+    Loads the max_size first triplets of `../train_triplets`.
+    """
     # Maps users and songs to their unique index for further referencing as matrix index
     USER_MAPPING: dict[str, int] = {}
     SONG_MAPPING: dict[str, int] = {}

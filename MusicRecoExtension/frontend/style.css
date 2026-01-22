@@ -1,0 +1,385 @@
+/* Root variables - SoundCloud inspired color palette */
+:root {
+    --primary: #FF5500;
+    --primary-dark: #E04D00;
+    --primary-light: #FF6B1A;
+    --bg-main: #0A0A0A;
+    --bg-secondary: #1A1A1A;
+    --bg-elevated: #242424;
+    --text-primary: #FFFFFF;
+    --text-secondary: #AAAAAA;
+    --text-muted: #666666;
+    --border: #2A2A2A;
+    --accent: #00D9FF;
+}
+
+#music-reco-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 13px;
+    z-index: 2147483647;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+}
+
+#reco-panel {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 280px;
+    background: linear-gradient(145deg, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+    border: 2px solid var(--primary);
+    box-shadow: 0 0 30px rgba(255, 85, 0, 0.5), 0 10px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 85, 0, 0.2);
+    border-radius: 16px;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+}
+
+#reco-header {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(255, 85, 0, 0.15) 0%, rgba(255, 85, 0, 0.05) 100%);
+    border-bottom: 2px solid rgba(255, 85, 0, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 0 2px 10px rgba(255, 85, 0, 0.2);
+}
+
+#reco-header:active {
+    cursor: grabbing;
+}
+
+.reco-header-title {
+    display: flex;
+    align-items: center;
+}
+
+.header-icon {
+    width: 24px;
+    height: 24px;
+    color: var(--primary);
+    filter: drop-shadow(0 0 12px rgba(255, 85, 0, 0.8));
+    animation: iconGlow 3s ease-in-out infinite;
+}
+
+@keyframes iconGlow {
+    0%, 100% { filter: drop-shadow(0 0 12px rgba(255, 85, 0, 0.8)); }
+    50% { filter: drop-shadow(0 0 20px rgba(255, 85, 0, 1)); }
+}
+
+.reco-header-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.reco-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    width: 28px;
+    height: 28px;
+}
+
+.reco-icon-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.reco-icon-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    transform: scale(1.05);
+}
+
+.reco-icon-btn:active {
+    transform: scale(0.95);
+}
+
+
+#reco-settings-panel {
+    display: none;
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    animation: slideDown 0.2s ease;
+}
+
+#reco-settings-panel.visible {
+    display: block;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 200px;
+    }
+}
+
+.setting-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 6px;
+}
+
+#algo-selector {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#algo-selector:hover {
+    border-color: var(--primary);
+}
+
+#algo-selector:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.1);
+}
+
+.user-id-info {
+    color: var(--text-muted);
+    font-size: 9px;
+    margin-top: 8px;
+    text-align: center;
+    font-family: monospace;
+}
+
+#reco-content {
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 220px;
+    background: transparent;
+}
+
+.view-section {
+    width: 100%;
+    text-align: center;
+    display: none;
+}
+
+.view-section.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Initial View */
+.icon-wrapper {
+    margin-bottom: 16px;
+}
+
+.main-icon {
+    width: 56px;
+    height: 56px;
+    color: var(--primary);
+    filter: drop-shadow(0 4px 16px rgba(255, 85, 0, 0.6));
+}
+
+.view-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+}
+
+.view-description {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    padding: 0 8px;
+    text-align: center;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--text-primary);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(255, 85, 0, 0.3);
+}
+
+.primary-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.primary-btn:hover {
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+    box-shadow: 0 6px 20px rgba(255, 85, 0, 0.4);
+    transform: translateY(-1px);
+}
+
+.primary-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(255, 85, 0, 0.3);
+}
+
+/* Playing View */
+.status-indicator {
+    margin-bottom: 20px;
+}
+
+.listening-icon {
+    width: 64px;
+    height: 64px;
+    color: var(--primary);
+}
+
+.listening-icon .wave-bar {
+    animation: waveform 1.2s ease-in-out infinite;
+}
+
+.listening-icon .wave-bar:nth-child(1) { animation-delay: 0s; }
+.listening-icon .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.listening-icon .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.listening-icon .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.listening-icon .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes waveform {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scaleY(0.5);
+    }
+    50% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+.listening-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    font-weight: 500;
+}
+
+#reco-timer {
+    display: none;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.icon-btn {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    transition: all 0.2s ease;
+}
+
+.icon-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 85, 0, 0.2);
+}
+
+.icon-btn:active {
+    transform: translateY(0);
+}
+
+.stop-btn {
+    border-color: #FF3B3B;
+}
+
+.stop-btn:hover {
+    background: #FF3B3B;
+    border-color: #FF3B3B;
+    color: var(--text-primary);
+    box-shadow: 0 4px 12px rgba(255, 59, 59, 0.3);
+}
+
+/* Loader */
+#temp-loader {
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.loader-spinner {
+    margin-bottom: 16px;
+}
+
+.loader-spinner svg {
+    width: 48px;
+    height: 48px;
+    color: var(--primary);
+    animation: spin 1s linear infinite;
+    filter: drop-shadow(0 0 10px rgba(255, 85, 0, 0.4));
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loader-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}

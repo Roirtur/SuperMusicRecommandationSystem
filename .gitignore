@@ -8,3 +8,4 @@ MillionSongSubset/
 
 __pycache__/
 *.npy
+*.tar.gz

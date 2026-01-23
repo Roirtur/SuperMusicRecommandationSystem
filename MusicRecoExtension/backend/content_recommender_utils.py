@@ -147,18 +147,10 @@ def get_content_based_recommendation(recommender, user_id, conn):
     
     if not recommendations:
         print("[CONTENT-BASED] No recommendations generated")
-        return None
+        return []
     
     print(f"[CONTENT-BASED] Generated {len(recommendations)} recommendations:")
     for i, rec in enumerate(recommendations, 1):
         print(f"  {i}. {rec['title']} - {rec['artist_name']} (similarity: {rec['similarity']:.3f})")
     
-    # Select one at random from top 5
-    selected = random.choice(recommendations)
-    
-    # Format as "Title - Artist"
-    result = f"{selected['title']} - {selected['artist_name']}"
-    
-    print(f"[CONTENT-BASED] Selected: {result}")
-    
-    return result
+    return recommendations

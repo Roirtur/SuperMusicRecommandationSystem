@@ -13,24 +13,28 @@ project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-COLLABORATIVE_AVAILABLE = False
+# Import Recommenders
 try:
-    # We attempt import inside try/except block because api.py runs initialization code
-    from collaborative.api import get_recommendations as get_collaborative_recommendations
-    COLLABORATIVE_AVAILABLE = True
-    print("[COLLABORATIVE] ✓ Module loaded successfully")
-except Exception as e:
-    print(f"[COLLABORATIVE] ⚠ Could not import module or load models: {e}")
-    COLLABORATIVE_AVAILABLE = False
+    from collaborative_recommender import get_collaborative_recommendations, is_collaborative_available
+    print("[COLLABORATIVE] ✓ Wrapper loaded successfully")
+except ImportError as e:
+    print(f"[COLLABORATIVE] ⚠ Could not import wrapper: {e}")
+    def is_collaborative_available(): return False
+    def get_collaborative_recommendations(*args, **kwargs): return []
 
-
-# Import content-based recommender utilities
 try:
     from content_recommender_utils import load_content_recommender, get_content_based_recommendation
     CONTENT_RECOMMENDER_AVAILABLE = True
 except ImportError as e:
     print(f"[WARNING] Could not import content_recommender_utils: {e}")
     CONTENT_RECOMMENDER_AVAILABLE = False
+
+try:
+    from mix_recommender import get_mix_recommendation
+    MIX_RECOMMENDER_AVAILABLE = True
+except ImportError as e:
+     print(f"[WARNING] Could not import mix_recommender: {e}")
+     MIX_RECOMMENDER_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -241,102 +245,75 @@ def recommend_next_track():
                 algo_used = "fallback_default"
         else:
             # User has sufficient history - use algorithm-specific logic
-            # TODO: Replace with actual ML models
+            selected_track_obj = None
+            
             if algo_type == 'content':
-                # Content-based recommendation using embeddings
-                if content_recommender is not None:
+                if CONTENT_RECOMMENDER_AVAILABLE and content_recommender:
                     try:
-                        recommended_track = get_content_based_recommendation(
-                            content_recommender, 
-                            user_id, 
-                            conn
-                        )
-                        
-                        if recommended_track:
-                            suggestion = recommended_track
+                        recs = get_content_based_recommendation(content_recommender, user_id, conn)
+                        if recs:
+                            # Content recommender returns list of dicts
+                            selected_track_obj = random.choice(recs)
+                            algo_used = "content_v1"
                         else:
-                            # Fallback if no recommendation could be generated
-                            suggestion = "Stairway to Heaven - Led Zeppelin"
-                            algo_used = "content_fallback"
-                            print("[CONTENT-BASED] Using fallback track")
+                             algo_used = "content_empty"
                     except Exception as e:
-                        print(f"[CONTENT-BASED] Error generating recommendation: {e}")
-                        suggestion = "Stairway to Heaven - Led Zeppelin"
+                        print(f"[CONTENT] Error: {e}")
                         algo_used = "content_error"
                 else:
-                    # Content recommender not available
-                    suggestion = "Stairway to Heaven - Led Zeppelin"
-                    algo_used = "content_unavailable"
-                    print("[CONTENT-BASED] Recommender not initialized")
+                    algo_used = "content_na"
+                    
             elif algo_type == 'matriciel':
-                if COLLABORATIVE_AVAILABLE:
+                if is_collaborative_available():
                     try:
-                        # Get user history
-                        cursor.execute("SELECT song_id, listening_time FROM listening_history WHERE user_id = ?", (user_id,))
-                        history = cursor.fetchall()
-                        
-                        if not history:
-                            # Should be handled by cold start check, but just in case
-                            suggestion = "Bohemian Rhapsody - Queen"
-                            algo_used = "matriciel_stateless"
+                        # Wrapper handles DB lookup
+                        recs = get_collaborative_recommendations(user_id, conn, limit=10)
+                        if recs:
+                            selected_track_obj = random.choice(recs)
+                            algo_used = "matriciel_v1"
                         else:
-                            # collaborative api expects list[tuple[str, int]]
-                            # We use listening_time (score) as count.
-                            user_listenings = [(row[0], int(row[1])) for row in history]
-                            
-                            recommendations = get_collaborative_recommendations(user_listenings)
-                            
-                            if recommendations:
-                                # Get metadata for the top recommendations
-                                top_n = recommendations[:10]
-                                placeholders = ','.join(['?'] * len(top_n))
-                                print(f"[COLLABORATIVE] Top recommendations: {top_n}")
-                                query = f"SELECT song_id, title, artist, duration, release, year, tempo FROM songs WHERE song_id IN ({placeholders})"
-                                print(f"[COLLABORATIVE] Executing query: {query} with {top_n}")
-                                cursor.execute(query, top_n)
-                                found_songs = cursor.fetchall()
-                                
-                                if found_songs:
-                                    # Map back to preserve order of recommendation
-                                    songs_map = {row[0]: row for row in found_songs}
-                                    
-                                    selected_row = random.choice([songs_map[song_id] for song_id in top_n if song_id in songs_map]) if any(song_id in songs_map for song_id in top_n) else None
-                                    
-                                    if selected_row:
-                                        suggestion = f"{selected_row[1]} - {selected_row[2]}"
-                                        track_details = {
-                                            "song_id": selected_row[0],
-                                            "title": selected_row[1],
-                                            "artist": selected_row[2],
-                                            "duration": selected_row[3],
-                                            "release": selected_row[4],
-                                            "year": selected_row[5],
-                                            "tempo": selected_row[6]
-                                        }
-                                        algo_used = "matriciel_collaborative"
-                                    else:
-                                         print("[COLLABORATIVE] No matching songs found in DB for recommendations")
-                                         suggestion = "Hotel California - The Eagles"
-                                         algo_used = "matriciel_fallback_db"
-                                else:
-                                    print("[COLLABORATIVE] No recommended songs found in DB")
-                                    suggestion = "Hotel California - The Eagles"
-                                    algo_used = "matriciel_fallback_db"
-                            else:
-                                suggestion = "Bohemian Rhapsody - Queen"
-                                algo_used = "matriciel_no_reco"
-                                
+                            algo_used = "matriciel_empty"
                     except Exception as e:
-                        print(f"[COLLABORATIVE] Error generating recommendation: {e}")
-                        suggestion = "Bohemian Rhapsody - Queen"
+                        print(f"[COLLAB] Error: {e}")
                         algo_used = "matriciel_error"
                 else:
-                    suggestion = "Bohemian Rhapsody - Queen"
-                    algo_used = "matriciel_unavailable"
+                    algo_used = "matriciel_na"
+                    
             elif algo_type == 'mix':
-                suggestion = "Hotel California - The Eagles"
+                 if MIX_RECOMMENDER_AVAILABLE:
+                     try:
+                         # mix recommender handles scoring and returns single winner
+                         rec, reason = get_mix_recommendation(user_id, conn, content_recommender)
+                         if rec:
+                             selected_track_obj = rec
+                             algo_used = reason
+                         else:
+                             algo_used = reason
+                     except Exception as e:
+                         print(f"[MIX] Error: {e}")
+                         algo_used = "mix_error"
+                 else:
+                     algo_used = "mix_na"
+            
+            # Fallback if no track selected
+            if selected_track_obj:
+               # Ensure we have required keys
+               title = selected_track_obj.get('title', 'Unknown Title')
+               artist = selected_track_obj.get('artist') or selected_track_obj.get('artist_name') or 'Unknown Artist'
+               suggestion = f"{title} - {artist}"
+               
+               track_details = {
+                    "song_id": selected_track_obj.get('song_id'),
+                    "title": title,
+                    "artist": artist,
+                    "duration": selected_track_obj.get('duration', DEFAULT_SONG_DURATION),
+                    "release": selected_track_obj.get('release'),
+                    "year": selected_track_obj.get('year', 0),
+                    "tempo": selected_track_obj.get('tempo', 0)
+                }
             else:
-                suggestion = "Billie Jean - Michael Jackson"
+                 suggestion = "Hotel California - The Eagles"
+                 algo_used += "_fallback"
 
         conn.close()
 

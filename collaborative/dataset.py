@@ -20,7 +20,7 @@ def load(max_size: int) -> tuple[np.ndarray, dict[str, int], dict[str, int]]:
     )
     dataset_raw: list[tuple[int, int, int]] = []
     with open(
-        (Path(__file__).parent / "../../Dataset/train_triplets.txt").resolve(), "r"
+        (Path(__file__).parent / "../train_triplets.txt").resolve(), "r"
     ) as dataset_file:
         for line in dataset_file:
             user_id, song_id, listening_count = line.split("\t")

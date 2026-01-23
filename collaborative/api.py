@@ -32,11 +32,19 @@ print("[COLLABORATIVE] Model loaded")
 
 
 def get_recommendations(users_listenings: list[tuple[str, int]]) -> list[str]:
+    print(f"[COLLAB_API] Analyzing {len(users_listenings)} input songs")
     # User songs as indexes w.r.t. song mapping
     user_song_indexes = {
         SONG_MAPPING[song_id]: listening_count
         for song_id, listening_count in users_listenings
+        if song_id in SONG_MAPPING
     }
+
+    if not user_song_indexes:
+        print("[COLLAB_API] No valid known songs in input")
+        return []
+    
+    print(f"[COLLAB_API] Found {len(user_song_indexes)} known songs in input")
 
     # Restrict q to songs listened by the given user
     user_songs_selector = [

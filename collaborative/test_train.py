@@ -1,3 +1,4 @@
+import json
 import numpy as np
 
 from .dataset import load as load_dataset, normalize
@@ -34,5 +35,7 @@ if __name__ == "__main__":
     print("Training done")
 
     save(f"model-{DATASET_SIZE}-{l}", model)
+    with open("model-{DATASET_SIZE}-{l}_stats.json", "w") as f:
+        json.dump(stats, f)
 
     print("Model saved")

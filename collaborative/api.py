@@ -74,5 +74,5 @@ def get_recommendations(users_listenings: list[tuple[str, int]]) -> list[str]:
     # Keep the best 5 songs for this most similar user
     return [
         SONG_MAPPING_REVERT[song]
-        for song in most_similar_user_predictions.argsort()[:5]
+        for song in most_similar_user_predictions.argsort()[::-1][:5]
     ]

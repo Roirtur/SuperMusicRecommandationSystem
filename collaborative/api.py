@@ -2,11 +2,11 @@ import numpy as np
 
 from .dataset import load as load_dataset, normalize
 from .model import load as load_model
+from .test_train import DATASET_SIZE, l
 
 # Should load full dataset!
-dataset, USER_MAPPING, SONG_MAPPING = load_dataset(20_000_000)
-# Because training was done on 10m triplets
-average_listening_count = dataset["Listening count"][:10_000_000].mean()
+dataset, USER_MAPPING, SONG_MAPPING = load_dataset(DATASET_SIZE)
+average_listening_count = dataset["Listening count"].mean()
 dataset = normalize(dataset)
 
 print("[COLLABORATIVE] Dataset ready")
@@ -15,7 +15,7 @@ SONG_MAPPING_REVERT = {
     song_index: song_id for song_id, song_index in SONG_MAPPING.items()
 }
 
-q, p, b_song, b_user = load_model("model-10000000-40")
+q, p, b_song, b_user = load_model(f"model-{DATASET_SIZE}-{l}")
 
 print("[COLLABORATIVE] Model loaded")
 

@@ -26,6 +26,7 @@ class SongEmbeddingGenerator:
     def _create_text_representation(self, row):
         """
         Creates a textual representation of a song from its metadata.
+        Features used: title, artist_name, release, year, tempo, artist_terms, genre.
         """
         parts = []
         

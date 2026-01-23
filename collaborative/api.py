@@ -1,4 +1,6 @@
 import numpy as np
+from pathlib import Path
+import pickle
 
 from .dataset import load as load_dataset, normalize
 from .model import load as load_model
@@ -9,13 +11,22 @@ dataset, USER_MAPPING, SONG_MAPPING = load_dataset(DATASET_SIZE)
 average_listening_count = dataset["Listening count"].mean()
 dataset = normalize(dataset)
 
+#load songs_metadata.pkl
+with open(Path(__file__).parent / "../data/songs_metadata.pkl", "rb") as f:
+    songs_metadata = pickle.load(f)
+
+songs_metadata_indices = set((SONG_MAPPING[song_id] for song_id in songs_metadata["song_id"] if song_id in SONG_MAPPING))
+
 print("[COLLABORATIVE] Dataset ready")
+
+from pathlib import Path
 
 SONG_MAPPING_REVERT = {
     song_index: song_id for song_id, song_index in SONG_MAPPING.items()
 }
 
-q, p, b_song, b_user = load_model(f"model-{DATASET_SIZE}-{l}")
+model_path = Path(__file__).parent / f"model-{DATASET_SIZE}-{l}"
+q, p, b_song, b_user = load_model(str(model_path))
 
 print("[COLLABORATIVE] Model loaded")
 
@@ -72,7 +83,7 @@ def get_recommendations(users_listenings: list[tuple[str, int]]) -> list[str]:
     )
 
     # Keep the best 5 songs for this most similar user
-    return [
-        SONG_MAPPING_REVERT[song]
-        for song in most_similar_user_predictions.argsort()[::-1][:5]
-    ]
+    # Filter predictions to only songs in metadata, then get top 5
+    valid_indices = np.array([idx for idx in range(len(most_similar_user_predictions)) if idx in songs_metadata_indices])
+    top_songs = valid_indices[most_similar_user_predictions[valid_indices].argsort()[-5:][::-1]]
+    return [SONG_MAPPING_REVERT[song] for song in top_songs]

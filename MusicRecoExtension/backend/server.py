@@ -5,6 +5,24 @@ import pandas as pd
 import os
 import random
 import math
+import sys
+from pathlib import Path
+
+# Add project root to sys.path to allow importing from collaborative
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+COLLABORATIVE_AVAILABLE = False
+try:
+    # We attempt import inside try/except block because api.py runs initialization code
+    from collaborative.api import get_recommendations as get_collaborative_recommendations
+    COLLABORATIVE_AVAILABLE = True
+    print("[COLLABORATIVE] ✓ Module loaded successfully")
+except Exception as e:
+    print(f"[COLLABORATIVE] ⚠ Could not import module or load models: {e}")
+    COLLABORATIVE_AVAILABLE = False
+
 
 # Import content-based recommender utilities
 try:
@@ -251,7 +269,70 @@ def recommend_next_track():
                     algo_used = "content_unavailable"
                     print("[CONTENT-BASED] Recommender not initialized")
             elif algo_type == 'matriciel':
-                suggestion = "Bohemian Rhapsody - Queen"
+                if COLLABORATIVE_AVAILABLE:
+                    try:
+                        # Get user history
+                        cursor.execute("SELECT song_id, listening_time FROM listening_history WHERE user_id = ?", (user_id,))
+                        history = cursor.fetchall()
+                        
+                        if not history:
+                            # Should be handled by cold start check, but just in case
+                            suggestion = "Bohemian Rhapsody - Queen"
+                            algo_used = "matriciel_stateless"
+                        else:
+                            # collaborative api expects list[tuple[str, int]]
+                            # We use listening_time (score) as count.
+                            user_listenings = [(row[0], int(row[1])) for row in history]
+                            
+                            recommendations = get_collaborative_recommendations(user_listenings)
+                            
+                            if recommendations:
+                                # Get metadata for the top recommendations
+                                top_n = recommendations[:10]
+                                placeholders = ','.join(['?'] * len(top_n))
+                                print(f"[COLLABORATIVE] Top recommendations: {top_n}")
+                                query = f"SELECT song_id, title, artist, duration, release, year, tempo FROM songs WHERE song_id IN ({placeholders})"
+                                print(f"[COLLABORATIVE] Executing query: {query} with {top_n}")
+                                cursor.execute(query, top_n)
+                                found_songs = cursor.fetchall()
+                                
+                                if found_songs:
+                                    # Map back to preserve order of recommendation
+                                    songs_map = {row[0]: row for row in found_songs}
+                                    
+                                    selected_row = random.choice([songs_map[song_id] for song_id in top_n if song_id in songs_map]) if any(song_id in songs_map for song_id in top_n) else None
+                                    
+                                    if selected_row:
+                                        suggestion = f"{selected_row[1]} - {selected_row[2]}"
+                                        track_details = {
+                                            "song_id": selected_row[0],
+                                            "title": selected_row[1],
+                                            "artist": selected_row[2],
+                                            "duration": selected_row[3],
+                                            "release": selected_row[4],
+                                            "year": selected_row[5],
+                                            "tempo": selected_row[6]
+                                        }
+                                        algo_used = "matriciel_collaborative"
+                                    else:
+                                         print("[COLLABORATIVE] No matching songs found in DB for recommendations")
+                                         suggestion = "Hotel California - The Eagles"
+                                         algo_used = "matriciel_fallback_db"
+                                else:
+                                    print("[COLLABORATIVE] No recommended songs found in DB")
+                                    suggestion = "Hotel California - The Eagles"
+                                    algo_used = "matriciel_fallback_db"
+                            else:
+                                suggestion = "Bohemian Rhapsody - Queen"
+                                algo_used = "matriciel_no_reco"
+                                
+                    except Exception as e:
+                        print(f"[COLLABORATIVE] Error generating recommendation: {e}")
+                        suggestion = "Bohemian Rhapsody - Queen"
+                        algo_used = "matriciel_error"
+                else:
+                    suggestion = "Bohemian Rhapsody - Queen"
+                    algo_used = "matriciel_unavailable"
             elif algo_type == 'mix':
                 suggestion = "Hotel California - The Eagles"
             else:
